@@ -1230,6 +1230,19 @@ fn excel_get_notas_evaluacion_alumno(payload: Value) -> Result<Value, String> {
     Ok(data)
 }
 
+// Dado un conjunto de celdas (columna, texto) de una fila de cabecera, extrae
+// los pares (codigo CR en mayusculas, columna) ordenados por columna. Pura y
+// testeable sin abrir ningun xlsx — reutilizada tanto para la lectura via XML
+// directo como para el fallback via calamine.
+fn cr_cols_from_cells(cells: impl Iterator<Item = (usize, String)>) -> Vec<(String, usize)> {
+    let mut sorted: Vec<(usize, String)> = cells.collect();
+    sorted.sort_by_key(|(ci, _)| *ci);
+    sorted.into_iter()
+        .filter(|(_, s)| is_cr_code(s))
+        .map(|(ci, s)| (s.to_uppercase(), ci))
+        .collect()
+}
+
 // Lee la nota final de la unidad (col E = índice 4).
 // Usa el primer bloque de prácticas para localizar name_col y first_student_row,
 // garantizando que leemos exactamente las mismas filas de alumnos que el resto del sistema.
@@ -1250,28 +1263,25 @@ fn load_notas_unidad(path: &str, unidad: &str) -> Result<Value, String> {
         Err(_) => Vec::new(),
     };
 
-    // Detectar CRs en hoja Ux usando XML directo (calamine trunca columnas lejanas)
-    // Fila 3 en Excel = row_1=3 (1-indexed)
+    // Detectar CRs en hoja Ux usando XML directo (calamine trunca columnas lejanas
+    // en hojas anchas — la plantilla nueva llega hasta la columna ~601).
+    // Fila 5 en Excel = row_1=5 (cabecera de criterios en el layout con
+    // instrumentos por criterio); fallback fila 6 por si el layout varia.
     let mut cr_cols: Vec<(String, usize)> = Vec::new();
-    for check_row_1 in [3usize, 4usize] {
+    for check_row_1 in [5usize, 6usize] {
         let xml_row = read_row_from_xml(path, unidad, check_row_1);
         if !xml_row.is_empty() {
-            let mut sorted: Vec<(usize, String)> = xml_row.into_iter().collect();
-            sorted.sort_by_key(|(ci, _)| *ci);
-            for (ci, s) in sorted {
-                if is_cr_code(&s) { cr_cols.push((s.to_uppercase(), ci)); }
-            }
+            cr_cols = cr_cols_from_cells(xml_row.into_iter());
         }
         if !cr_cols.is_empty() { break; }
     }
-    // Fallback a calamine si XML falla
+    // Fallback a calamine si XML falla (sin tope de columna: la plantilla nueva
+    // tiene criterios mas alla de la columna 200 que usaba el tope antiguo).
     if cr_cols.is_empty() {
-        for check_ri in 2..=3 {
+        for check_ri in 4..=5usize {
             if let Some(row) = rows.get(check_ri) {
-                for ci in 0..row.len().min(200) {
-                    let s = cell_val_str(row.get(ci).unwrap_or(&Value::Null));
-                    if is_cr_code(&s) { cr_cols.push((s.to_uppercase(), ci)); }
-                }
+                let cells = row.iter().enumerate().map(|(ci, v)| (ci, cell_val_str(v)));
+                cr_cols = cr_cols_from_cells(cells);
             }
             if !cr_cols.is_empty() { break; }
         }
@@ -3153,6 +3163,50 @@ mod final_weighted_tests {
         let result = compute_final_weighted(values, weights);
         // (0*10 + 0.5*4) / (0 + 0.5) = 2.0 / 0.5 = 4.0
         assert_eq!(result, Some(4.0));
+    }
+}
+
+#[cfg(test)]
+mod cr_cols_tests {
+    use super::*;
+
+    #[test]
+    fn extrae_codigos_cr_ordenados_por_columna() {
+        let cells = vec![
+            (13usize, "CR1.2".to_string()),
+            (7usize, "CR1.1".to_string()),
+            (2usize, "Alumno".to_string()),
+        ];
+        let result = cr_cols_from_cells(cells.into_iter());
+        assert_eq!(result, vec![
+            ("CR1.1".to_string(), 7),
+            ("CR1.2".to_string(), 13),
+        ]);
+    }
+
+    #[test]
+    fn normaliza_a_mayusculas() {
+        let cells = vec![(7usize, "cr1.1".to_string())];
+        let result = cr_cols_from_cells(cells.into_iter());
+        assert_eq!(result, vec![("CR1.1".to_string(), 7)]);
+    }
+
+    #[test]
+    fn ignora_celdas_que_no_son_codigo_cr() {
+        let cells = vec![
+            (0usize, "Alumno".to_string()),
+            (7usize, "CR1.1".to_string()),
+            (12usize, "Rec".to_string()),
+            (13usize, "FINAL".to_string()),
+        ];
+        let result = cr_cols_from_cells(cells.into_iter());
+        assert_eq!(result, vec![("CR1.1".to_string(), 7)]);
+    }
+
+    #[test]
+    fn fila_sin_codigos_devuelve_vacio() {
+        let cells = vec![(0usize, "nota final unidad".to_string())];
+        assert_eq!(cr_cols_from_cells(cells.into_iter()), Vec::<(String, usize)>::new());
     }
 }
 
