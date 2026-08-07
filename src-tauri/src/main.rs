@@ -2048,6 +2048,22 @@ fn save_rraa_criterios_to_file(_rraa: &[Value], criterios: &[Value], pond_unidad
 // save_notas_actividad
 // ---------------------------------------------------------------------------
 
+// Replica SUMPRODUCT((vals<>"")*pesos*vals)/SUMPRODUCT((vals<>"")*pesos) de la
+// plantilla: media ponderada de hasta 4 instrumentos, ignorando los que estan
+// vacios (None) tanto en el numerador como en el denominador. Un valor 0
+// explicito SI cuenta (distinto de vacio, igual que en Excel "0" <> "").
+fn compute_final_weighted(values: [Option<f64>; 4], weights: [f64; 4]) -> Option<f64> {
+    let mut num = 0.0;
+    let mut den = 0.0;
+    for i in 0..4 {
+        if let Some(v) = values[i] {
+            num += weights[i] * v;
+            den += weights[i];
+        }
+    }
+    if den == 0.0 { None } else { Some(num / den) }
+}
+
 fn normalize_grade(value: &Value) -> Option<f64> {
     match value {
         Value::Number(n) => n.as_f64(),
@@ -3088,6 +3104,54 @@ mod eval_layout_tests {
         assert_eq!(find_evaluation_layout_indices(&rows), None);
     }
 
+}
+
+#[cfg(test)]
+mod final_weighted_tests {
+    use super::*;
+
+    // Replica la fórmula real de la plantilla (U1!L7):
+    // =IFERROR(SUMPRODUCT((H7:K7<>"")*C$4:F$4*H7:K7)/SUMPRODUCT((H7:K7<>"")*C$4:F$4),"")
+    const PESOS_REALES: [f64; 4] = [0.2, 0.4, 0.2, 0.2];
+
+    #[test]
+    fn media_ponderada_con_los_4_instrumentos() {
+        let values = [Some(8.0), Some(7.0), Some(9.0), Some(6.0)];
+        let result = compute_final_weighted(values, PESOS_REALES);
+        // (0.2*8 + 0.4*7 + 0.2*9 + 0.2*6) / (0.2+0.4+0.2+0.2) = 7.4 / 1.0
+        assert_eq!(result, Some(7.4));
+    }
+
+    #[test]
+    fn ignora_instrumentos_vacios_en_numerador_y_denominador() {
+        let values = [Some(8.0), None, Some(9.0), Some(6.0)];
+        let result = compute_final_weighted(values, PESOS_REALES);
+        // (0.2*8 + 0.2*9 + 0.2*6) / (0.2+0.2+0.2) = 4.6 / 0.6 = 7.666...
+        assert!((result.unwrap() - 7.6666666666666).abs() < 1e-9);
+    }
+
+    #[test]
+    fn valor_cero_explicito_cuenta_distinto_de_vacio() {
+        // Un 0 tecleado SI cuenta (no es "" en Excel); solo None (celda vacia) se ignora.
+        let values = [Some(0.0), None, None, None];
+        let result = compute_final_weighted(values, PESOS_REALES);
+        assert_eq!(result, Some(0.0));
+    }
+
+    #[test]
+    fn todos_vacios_devuelve_none() {
+        let result = compute_final_weighted([None, None, None, None], PESOS_REALES);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn peso_cero_en_slot_presente_no_distorsiona_el_resto() {
+        let values = [Some(10.0), Some(4.0), None, None];
+        let weights = [0.0, 0.5, 0.3, 0.2];
+        let result = compute_final_weighted(values, weights);
+        // (0*10 + 0.5*4) / (0 + 0.5) = 2.0 / 0.5 = 4.0
+        assert_eq!(result, Some(4.0));
+    }
 }
 
 fn main() {
