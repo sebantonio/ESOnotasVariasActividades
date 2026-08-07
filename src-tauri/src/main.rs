@@ -2052,6 +2052,8 @@ fn save_rraa_criterios_to_file(_rraa: &[Value], criterios: &[Value], pond_unidad
 // plantilla: media ponderada de hasta 4 instrumentos, ignorando los que estan
 // vacios (None) tanto en el numerador como en el denominador. Un valor 0
 // explicito SI cuenta (distinto de vacio, igual que en Excel "0" <> "").
+// Temporary: only called from test cfg until Task 3 wires it into evaluation sheet load.
+#[allow(dead_code)]
 fn compute_final_weighted(values: [Option<f64>; 4], weights: [f64; 4]) -> Option<f64> {
     let mut num = 0.0;
     let mut den = 0.0;
