@@ -1,4 +1,4 @@
-# ESO Notas Local
+# ESO_notas_Actividades
 
 Aplicacion de escritorio para gestionar calificaciones de ESO sobre una plantilla Excel local. Permite mantener alumnos, unidades, competencias especificas, criterios, instrumentos de evaluacion, actividades, recuperaciones, informes y diario de clase desde una interfaz HTML empaquetada con Tauri.
 
