@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instrumentos de Evaluacion</title>
+    <script src="app-bridge.js"></script>
+    <link rel="stylesheet" href="ux-common.css">
+    <script src="ux-common.js" defer></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--color-paper);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.25);
+            overflow: hidden;
+        }
+
+        .header { background: var(--color-accent-strong); color: white; padding: 28px 30px; }
+        .header h1 { font-size: 2em; margin-bottom: 8px; }
+        .header p { opacity: 0.9; font-size: 1em; }
+
+        .content { padding: 30px; }
+
+        .section { margin-bottom: 30px; }
+        .section h2 {
+            color: var(--color-accent); font-size: 1.3em;
+            margin-bottom: 15px; padding-bottom: 8px;
+            border-bottom: 2px solid var(--color-accent);
+        }
+
+        .message { padding: 14px 18px; border-radius: 6px; margin-bottom: 15px; display: none; }
+        .message.show { display: block; }
+        .message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .message.error   { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .message.info    { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+
+        .table-container { overflow-x: auto; border: 1px solid #e0e0e0; border-radius: 8px; }
+
+        table { width: 100%; border-collapse: collapse; background: white; }
+        table th { background: var(--color-accent); color: white; padding: 12px 15px; text-align: left; font-weight: 600; }
+        table td { padding: 12px 10px; border-bottom: 1px solid #e0e0e0; }
+        table tr:hover { background: #f8f9ff; }
+        table tr:last-child td { border-bottom: none; }
+
+        table input[type="text"] {
+            width: 100%; padding: 8px; border: 1px solid #ddd;
+            border-radius: 4px; font-size: 0.95em; font-family: inherit;
+        }
+        table input:focus { outline: none; border-color: var(--color-accent); box-shadow: 0 0 0 2px rgba(99,102,241,0.1); }
+
+        .codigo-cell { width: 100px; }
+        .num-cell { width: 50px; text-align: center; font-weight: 600; color: var(--color-accent); }
+
+        .info-box {
+            background: #f0f4ff; border: 1px solid #c7d2fe;
+            border-radius: 8px; padding: 16px 20px; margin-bottom: 20px;
+            font-size: 0.95em; color: var(--color-accent-strong); line-height: 1.6;
+        }
+        .info-box strong { display: block; margin-bottom: 6px; font-size: 1em; }
+
+        .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; }
+
+        button {
+            padding: 12px 24px; background: var(--color-accent); color: white;
+            border: none; border-radius: 6px; cursor: pointer;
+            font-size: 1em; font-weight: 600; transition: all 0.2s;
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(99,102,241,0.4); }
+        button:active { transform: translateY(0); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        button.secondary { background: #f0f0f0; color: var(--color-accent); border: 2px solid var(--color-accent); }
+        button.secondary:hover { background: #f8f9ff; }
+
+        .save-status {
+            position: fixed; top: 20px; right: 20px;
+            padding: 12px 20px; border-radius: 8px;
+            font-weight: 600; font-size: 0.9em; z-index: 1000;
+        }
+        .save-status.saving { background: #ffc107; color: #333; }
+        .save-status.saved  { background: #28a745; color: white; }
+        .save-status.error  { background: #dc3545; color: white; }
+
+        .loading { display: none; text-align: center; padding: 20px; color: var(--color-accent); }
+        .spinner {
+            border: 3px solid #f3f3f3; border-top: 3px solid var(--color-accent);
+            border-radius: 50%; width: 30px; height: 30px;
+            animation: spin 1s linear infinite; margin: 0 auto 10px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .page-nav {
+            display: flex; justify-content: space-between; gap: 12px;
+            padding: 14px 16px; background: #f8f9ff; border-bottom: 1px solid #e0e0e0;
+        }
+        .nav-group { display: flex; flex-wrap: wrap; gap: 10px; }
+        .nav-button, .nav-link {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-height: 38px; padding: 8px 14px; border-radius: 8px;
+            font-size: 0.92em; font-weight: 700; text-decoration: none;
+        }
+        .nav-button { background: white; color: var(--color-accent); border: 2px solid var(--color-accent); cursor: pointer; }
+        .nav-button:hover { background: #f0f2ff; transform: translateY(-1px); }
+        .nav-link { background: var(--color-accent); color: white; border: 2px solid var(--color-accent); }
+        .nav-link:hover { background: var(--color-accent); transform: translateY(-1px); }
+    </style>
+</head>
+<body class="ux-app-shell ux-page-gestor-instrumentos">
+    <div id="saveStatus" class="save-status" style="display:none;"></div>
+
+    <div class="container">
+        <nav class="page-nav" aria-label="Navegacion">
+            <div class="nav-group">
+                <button class="nav-button" type="button" onclick="window.history.back()">Atras</button>
+                <a class="nav-link" href="index.html">Inicio</a>
+            </div>
+        </nav>
+
+        <div class="header">
+            <h1>Instrumentos de Evaluacion</h1>
+            <p>Configuracion de los instrumentos usados en la hoja PESOS</p>
+        </div>
+
+        <div class="content">
+            <div id="message" class="message"></div>
+
+            <div class="info-box">
+                <strong>Instrumentos de evaluacion</strong>
+                Definen como se recoge la evidencia de cada criterio: PE (Pruebas escritas),
+                TD (Tareas diarias), TI (Trabajo de investigacion), TG (Trabajo en grupo), L (Laboratorio).
+                Se almacenan en la hoja DATOS, columnas N y O (filas 5-14).
+            </div>
+
+            <div class="section">
+                <h2>Instrumentos (max. 10)</h2>
+                <div class="actions" style="margin-top:0; margin-bottom:12px;">
+                    <input type="search" id="instrumentoSearchInput" placeholder="Buscar por codigo o nombre..." style="flex:1; min-width:220px; padding:10px; border:1px solid #ddd; border-radius:6px;" />
+                    <button class="secondary" type="button" id="clearInstrumentoSearchButton">Limpiar filtro</button>
+                </div>
+                <div class="table-container">
+                    <table id="instrumentosTable">
+                        <thead>
+                            <tr>
+                                <th class="num-cell">N</th>
+                                <th class="codigo-cell">Codigo</th>
+                                <th>Nombre / Descripcion</th>
+                            </tr>
+                        </thead>
+                        <tbody id="instrumentosBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button onclick="guardarInstrumentos()">Guardar Cambios</button>
+                <button class="secondary" onclick="cargarInstrumentos()">Recargar desde Excel</button>
+            </div>
+
+            <div class="info-box" style="margin-top:14px; margin-bottom:0;">
+                <strong>Estado</strong>
+                <span id="syncStatus">Sin sincronizar</span>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Procesando...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const MAX_INSTRUMENTOS = 10;
+        let instrumentosActuales = [];
+        const isElectronMode = Boolean(window.electronExcel);
+        const VIEW_PREFS_KEY = 'gestorInstrumentosViewPrefs';
+        let instrumentoSearch = '';
+        let hayCambiosSinGuardar = false;
+
+        function renderTabla() {
+            const tbody = document.getElementById('instrumentosBody');
+            const rows = [];
+            for (let i = 0; i < MAX_INSTRUMENTOS; i++) {
+                const inst = instrumentosActuales[i] || { codigo: '', nombre: '' };
+                const q = normalizarTexto(instrumentoSearch);
+                const match = !q || normalizarTexto(inst.codigo).includes(q) || normalizarTexto(inst.nombre).includes(q);
+                rows.push(`
+                    <tr${match ? '' : ' style="display:none;"'}>
+                        <td class="num-cell">${i + 1}</td>
+                        <td class="codigo-cell">
+                            <input type="text" value="${escaparHtml(inst.codigo)}" maxlength="6"
+                                   placeholder="PE"
+                                   onchange="actualizarCampo(${i}, 'codigo', this.value)" />
+                        </td>
+                        <td>
+                            <input type="text" value="${escaparHtml(inst.nombre)}"
+                                   placeholder="Prueba escrita"
+                                   onchange="actualizarCampo(${i}, 'nombre', this.value)" />
+                        </td>
+                    </tr>
+                `);
+            }
+            tbody.innerHTML = rows.join('');
+        }
+
+        function actualizarCampo(idx, campo, value) {
+            if (!instrumentosActuales[idx]) {
+                instrumentosActuales[idx] = { codigo: '', nombre: '' };
+            }
+            instrumentosActuales[idx][campo] = value.trim();
+            hayCambiosSinGuardar = true;
+            setSyncStatus('Cambios pendientes');
+        }
+
+        async function cargarInstrumentos() {
+            if (!isElectronMode) {
+                instrumentosActuales = [
+                    { codigo: 'PE', nombre: 'Pruebas escritas' },
+                    { codigo: 'TD', nombre: 'Tareas diarias' },
+                    { codigo: 'TI', nombre: 'Trabajo de investigacion' },
+                    { codigo: 'TG', nombre: 'Trabajo en grupo' },
+                    { codigo: 'L',  nombre: 'Laboratorio' }
+                ];
+                renderTabla();
+                mostrarMensaje('Modo navegador: datos de ejemplo cargados.', 'info');
+                return;
+            }
+
+            mostrarLoading(true);
+            try {
+                const result = await window.electronExcel.getInstrumentos();
+                if (!result) {
+                    mostrarMensaje('No se encontro un archivo Excel activo.', 'error');
+                    mostrarLoading(false);
+                    return;
+                }
+                instrumentosActuales = result.instrumentos || [];
+                renderTabla();
+                mostrarMensaje('Archivo conectado: ' + result.fileName, 'success');
+                hayCambiosSinGuardar = false;
+                setSyncStatus('Sincronizado ' + new Date().toLocaleTimeString());
+            } catch (err) {
+                mostrarMensaje('Error al cargar instrumentos: ' + err.message, 'error');
+            }
+            mostrarLoading(false);
+        }
+
+        async function guardarInstrumentos() {
+            if (!isElectronMode) {
+                mostrarMensaje('Guardado solo disponible en modo local (Tauri).', 'info');
+                return;
+            }
+
+            recogerValoresDeTabla();
+
+            mostrarLoading(true);
+            try {
+                const result = await window.electronExcel.saveInstrumentos(instrumentosActuales);
+                if (result) {
+                    instrumentosActuales = result.instrumentos || instrumentosActuales;
+                    renderTabla();
+                }
+                mostrarEstadoGuardado('saved', 'Guardado');
+                mostrarMensaje('Instrumentos guardados en el Excel.', 'success');
+                hayCambiosSinGuardar = false;
+                setSyncStatus('Guardado ' + new Date().toLocaleTimeString());
+            } catch (err) {
+                mostrarEstadoGuardado('error', 'Error al guardar');
+                mostrarMensaje('Error al guardar: ' + err.message, 'error');
+            }
+            mostrarLoading(false);
+        }
+
+        function recogerValoresDeTabla() {
+            const tbody = document.getElementById('instrumentosBody');
+            const rows = tbody.querySelectorAll('tr');
+            rows.forEach((tr, i) => {
+                const inputs = tr.querySelectorAll('input');
+                if (!instrumentosActuales[i]) {
+                    instrumentosActuales[i] = { codigo: '', nombre: '' };
+                }
+                instrumentosActuales[i].codigo = inputs[0] ? inputs[0].value.trim() : '';
+                instrumentosActuales[i].nombre = inputs[1] ? inputs[1].value.trim() : '';
+            });
+        }
+
+        function mostrarMensaje(texto, tipo) {
+            const el = document.getElementById('message');
+            const pretty = (tipo === 'error' && window.appUx && window.appUx.hintError)
+                ? window.appUx.hintError(texto)
+                : texto;
+            el.textContent = pretty;
+            el.className = 'message show ' + tipo;
+            setTimeout(() => el.classList.remove('show'), 5000);
+        }
+
+        function mostrarLoading(mostrar) {
+            document.getElementById('loading').style.display = mostrar ? 'block' : 'none';
+        }
+
+        function mostrarEstadoGuardado(estado, mensaje) {
+            const el = document.getElementById('saveStatus');
+            el.textContent = mensaje;
+            el.className = 'save-status ' + estado;
+            el.style.display = 'block';
+            if (estado !== 'saving') setTimeout(() => { el.style.display = 'none'; }, 3000);
+        }
+
+        function escaparHtml(v) {
+            return String(v || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function normalizarTexto(texto) {
+            return String(texto || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+        }
+
+        function setSyncStatus(texto) {
+            const el = document.getElementById('syncStatus');
+            if (el) el.textContent = texto || 'Sin sincronizar';
+        }
+
+        function saveViewPrefs() {
+            try {
+                localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify({ search: instrumentoSearch || '' }));
+            } catch {}
+        }
+
+        function loadViewPrefs() {
+            try {
+                return JSON.parse(localStorage.getItem(VIEW_PREFS_KEY) || 'null') || {};
+            } catch {
+                return {};
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('instrumentoSearchInput');
+            const clearButton = document.getElementById('clearInstrumentoSearchButton');
+            const prefs = loadViewPrefs();
+            if (prefs.search && searchInput) {
+                instrumentoSearch = String(prefs.search);
+                searchInput.value = instrumentoSearch;
+            }
+
+            if (searchInput) {
+                searchInput.addEventListener('input', () => {
+                    instrumentoSearch = searchInput.value;
+                    saveViewPrefs();
+                    renderTabla();
+                });
+            }
+
+            if (clearButton) {
+                clearButton.addEventListener('click', () => {
+                    instrumentoSearch = '';
+                    if (searchInput) searchInput.value = '';
+                    saveViewPrefs();
+                    renderTabla();
+                });
+            }
+
+            document.addEventListener('keydown', (event) => {
+                if (event.ctrlKey && event.key.toLowerCase() === 's') {
+                    event.preventDefault();
+                    guardarInstrumentos();
+                }
+            });
+
+            window.addEventListener('beforeunload', (event) => {
+                if (!hayCambiosSinGuardar) return;
+                event.preventDefault();
+                event.returnValue = 'Hay cambios de instrumentos pendientes de guardar.';
+            });
+
+            setSyncStatus('Listo para sincronizar');
+            cargarInstrumentos();
+        });
+    </script>
+</body>
+</html>

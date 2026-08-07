@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Utilidades de Aula</title>
+    <script src="app-bridge.js"></script>
+    <link rel="stylesheet" href="ux-common.css">
+    <script src="ux-common.js" defer></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { min-height: 100vh; padding: 20px; font-family: var(--font-body); background: var(--color-paper); color: #1f2937; }
+        .container { max-width: 1200px; margin: 0 auto; background: #fff; border-radius: 10px; box-shadow: 0 14px 42px rgba(31,41,55,0.16); overflow: clip; }
+        .page-nav { display: flex; justify-content: space-between; gap: 12px; padding: 14px 16px; background: #f8f9ff; border-bottom: 1px solid #e5e7eb; }
+        .nav-group { display: flex; flex-wrap: wrap; gap: 10px; }
+        .nav-button, .nav-link { display: inline-flex; align-items: center; min-height: 38px; padding: 8px 14px; border-radius: 8px; font-size: 0.92em; font-weight: 700; text-decoration: none; cursor: pointer; }
+        .nav-button { color: var(--color-accent); background: white; border: 2px solid var(--color-accent); }
+        .nav-link   { color: white; background: var(--color-accent); border: 2px solid var(--color-accent); }
+        .header { padding: 22px 28px; color: white; background: var(--color-accent-strong); }
+        .header h1 { font-size: 1.4rem; margin-bottom: 2px; }
+        .header p  { font-size: 0.88rem; opacity: 0.8; }
+
+        /* TABS */
+        .tabs { display: flex; gap: 2px; padding: 12px 16px 0; background: #f8f9ff; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
+        .tab-btn { padding: 10px 18px; border: none; border-bottom: 3px solid transparent; background: transparent; font: inherit; font-size: 0.92rem; font-weight: 700; color: #6b7280; cursor: pointer; border-radius: 6px 6px 0 0; transition: color 0.15s, border-color 0.15s; }
+        .tab-btn:hover { color: var(--color-accent-strong); background: #eef2ff; }
+        .tab-btn.active { color: var(--color-accent-strong); border-bottom-color: var(--color-accent); background: white; }
+        .tab-content { display: none; padding: 24px; }
+        .tab-content.active { display: block; }
+
+        /* SECTION TITLE */
+        .section-title { font-size: 1.05rem; font-weight: 800; color: var(--color-accent-strong); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+        /* ── TEMPORIZADOR ── */
+        .timer-wrap { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+        .timer-ring-wrap { position: relative; width: 220px; height: 220px; }
+        .timer-ring-wrap svg { transform: rotate(-90deg); }
+        .timer-ring-bg  { fill: none; stroke: #e0e7ff; stroke-width: 10; }
+        .timer-ring-fg  { fill: none; stroke: var(--color-accent); stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 0.5s linear, stroke 0.3s; }
+        .timer-display { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .timer-time { font-size: 3.2rem; font-weight: 900; color: #1e1b4b; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+        .timer-label { font-size: 0.75rem; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+        .timer-presets { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+        .preset-btn { padding: 7px 16px; border: 2px solid #e0e7ff; border-radius: 999px; background: white; font: inherit; font-size: 0.88rem; font-weight: 700; color: var(--color-accent-strong); cursor: pointer; transition: all 0.15s; }
+        .preset-btn:hover, .preset-btn.active { background: #eef2ff; border-color: var(--color-accent); }
+        .timer-custom { display: flex; align-items: center; gap: 8px; }
+        .timer-custom input { width: 64px; padding: 7px 10px; border: 2px solid #e0e7ff; border-radius: 8px; font: inherit; font-size: 0.92rem; text-align: center; }
+        .timer-custom input:focus { outline: none; border-color: var(--color-accent); }
+        .timer-controls { display: flex; gap: 12px; }
+        .timer-btn { min-width: 110px; padding: 10px 20px; border-radius: 8px; border: none; font: inherit; font-size: 0.95rem; font-weight: 800; cursor: pointer; transition: all 0.15s; }
+        .timer-btn.start  { background: var(--color-accent); color: white; }
+        .timer-btn.start:hover  { background: var(--color-accent); }
+        .timer-btn.pause  { background: #f59e0b; color: white; }
+        .timer-btn.pause:hover  { background: #d97706; }
+        .timer-btn.reset  { background: white; color: #6b7280; border: 2px solid #d1d5db; }
+        .timer-btn.reset:hover  { border-color: var(--color-accent); color: var(--color-accent-strong); }
+        .timer-finished { font-size: 1.1rem; font-weight: 800; color: #16a34a; animation: pulse-ok 0.6s infinite alternate; }
+        @keyframes pulse-ok { from { opacity: 1; } to { opacity: 0.4; } }
+
+        /* ── HORARIO ── */
+        .horario-wrap { overflow-x: auto; }
+        .horario-toolbar { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+        .horario-btn { padding: 7px 14px; border: 1.5px solid #d1d5db; border-radius: 7px; background: white; font: inherit; font-size: 0.88rem; font-weight: 700; color: #374151; cursor: pointer; }
+        .horario-btn:hover { border-color: var(--color-accent); color: var(--color-accent-strong); background: #f5f3ff; }
+        .horario-btn.primary { background: var(--color-accent); color: white; border-color: var(--color-accent); }
+        .horario-btn.primary:hover { background: var(--color-accent); }
+        .horario-grid { border-collapse: collapse; min-width: 600px; width: 100%; }
+        .horario-grid th { background: var(--color-accent-strong); color: white; padding: 9px 12px; text-align: center; font-size: 0.88rem; font-weight: 700; }
+        .horario-grid .th-hora { background: #1e1b4b; min-width: 80px; font-size: 0.82rem; }
+        .horario-grid td { border: 1px solid #e5e7eb; padding: 0; min-width: 140px; height: 52px; vertical-align: middle; }
+        .horario-cell { width: 100%; height: 100%; padding: 6px 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.88rem; font-weight: 600; min-height: 52px; border-radius: 0; background: white; transition: background 0.1s; }
+        .horario-cell:hover { background: #f5f3ff; }
+        .horario-cell.has-content { background: var(--cell-bg, #eef2ff); color: var(--cell-fg, var(--color-accent-strong)); }
+        .horario-cell input { width: 100%; border: none; background: transparent; font: inherit; font-size: 0.88rem; font-weight: 600; text-align: center; outline: none; color: inherit; }
+        .horario-hint { font-size: 0.8rem; color: #9ca3af; margin-top: 10px; }
+        .horario-excel-badge { font-size: 0.65rem; color: #059669; font-weight: 700; margin-top: 2px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; }
+        .horario-cell.has-excel { border-left: 3px solid #059669 !important; }
+        .horario-cell.has-excel:not(.editing):hover { background: #ecfdf5 !important; cursor: pointer; }
+        .horario-excel-btn { font-size: 0.68rem; padding: 2px 7px; border: 1px solid #d1d5db; border-radius: 4px; background: white; cursor: pointer; color: #6b7280; margin-top: 4px; display: inline-block; }
+        .horario-excel-btn:hover { border-color: #059669; color: #059669; }
+        .horario-excel-btn.linked { border-color: #059669; color: #059669; background: #ecfdf5; }
+
+        /* ── ALUMNO AL AZAR ── */
+        .azar-wrap { display: grid; grid-template-columns: 1fr 260px; gap: 24px; align-items: start; }
+        .azar-stage { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+        .azar-display { width: 100%; min-height: 130px; border-radius: 12px; background: linear-gradient(135deg, var(--color-accent-strong), #7c3aed); display: flex; align-items: center; justify-content: center; padding: 20px; text-align: center; }
+        .azar-name { font-size: 2rem; font-weight: 900; color: white; letter-spacing: -0.5px; line-height: 1.1; word-break: break-word; }
+        .azar-name.rolling { font-size: 1.3rem; opacity: 0.7; }
+        .azar-name.empty { font-size: 1rem; opacity: 0.5; font-weight: 400; }
+        .azar-btn { padding: 12px 32px; border-radius: 10px; border: none; background: var(--color-accent); color: white; font: inherit; font-size: 1rem; font-weight: 800; cursor: pointer; transition: background 0.15s; }
+        .azar-btn:hover { background: var(--color-accent); }
+        .azar-btn:disabled { opacity: 0.5; cursor: default; }
+        .azar-stats { font-size: 0.82rem; color: #6b7280; }
+        .azar-history { margin-top: 8px; }
+        .azar-history h3 { font-size: 0.82rem; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+        .azar-history-list { display: flex; flex-wrap: wrap; gap: 6px; }
+        .history-chip { padding: 4px 10px; border-radius: 999px; background: #f3f4f6; color: #374151; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+        .history-chip button { background: none; border: none; cursor: pointer; font-size: 0.9rem; color: #9ca3af; padding: 0; line-height: 1; }
+        .history-chip button:hover { color: #dc2626; }
+        .azar-panel { display: flex; flex-direction: column; gap: 10px; }
+        .azar-panel-title { font-size: 0.8rem; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; }
+        .azar-list { max-height: 340px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+        .azar-list-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #f3f4f6; font-size: 0.88rem; }
+        .azar-list-item:last-child { border-bottom: none; }
+        .azar-list-item.excluded { opacity: 0.4; text-decoration: line-through; }
+        .azar-list-item input[type=checkbox] { accent-color: var(--color-accent); width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; }
+        .azar-reset-btn { padding: 7px 14px; border: 1.5px solid #d1d5db; border-radius: 7px; background: white; font: inherit; font-size: 0.85rem; font-weight: 700; color: #374151; cursor: pointer; }
+        .azar-reset-btn:hover { border-color: var(--color-accent); color: var(--color-accent-strong); }
+        @media (max-width: 700px) { .azar-wrap { grid-template-columns: 1fr; } }
+
+        /* ── AGRUPACIONES ── */
+        .grupos-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 20px; padding: 16px; background: #f8f9ff; border-radius: 10px; border: 1px solid #e5e7eb; }
+        .grupos-field { display: flex; flex-direction: column; gap: 5px; }
+        .grupos-field label { font-size: 0.8rem; font-weight: 700; color: #374151; }
+        .grupos-field input, .grupos-field select { padding: 8px 12px; border: 1.5px solid #d1d5db; border-radius: 7px; font: inherit; font-size: 0.92rem; width: 140px; }
+        .grupos-field input:focus, .grupos-field select:focus { outline: none; border-color: var(--color-accent); }
+        .grupos-btn { padding: 9px 20px; border-radius: 8px; border: none; background: var(--color-accent); color: white; font: inherit; font-size: 0.92rem; font-weight: 700; cursor: pointer; }
+        .grupos-btn:hover { background: var(--color-accent); }
+        .grupos-btn.secondary { background: white; color: #374151; border: 1.5px solid #d1d5db; }
+        .grupos-btn.secondary:hover { border-color: var(--color-accent); color: var(--color-accent-strong); }
+        .grupos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+        .grupo-card { border: 2px solid var(--gc, #c7d2fe); border-radius: 10px; overflow: hidden; }
+        .grupo-card-header { padding: 8px 12px; background: var(--gc, #c7d2fe); font-size: 0.82rem; font-weight: 800; color: var(--gct, var(--color-accent-strong)); }
+        .grupo-card-body { padding: 8px 12px; background: white; }
+        .grupo-member { padding: 5px 0; font-size: 0.88rem; font-weight: 600; border-bottom: 1px solid #f3f4f6; color: #1f2937; }
+        .grupo-member:last-child { border-bottom: none; }
+        .grupos-info { font-size: 0.82rem; color: #6b7280; margin-bottom: 12px; }
+        .grupos-copy-btn { margin-top: 14px; padding: 8px 18px; border: 1.5px solid #d1d5db; border-radius: 7px; background: white; font: inherit; font-size: 0.85rem; font-weight: 700; color: #374151; cursor: pointer; }
+        .grupos-copy-btn:hover { border-color: var(--color-accent); color: var(--color-accent-strong); }
+        .grupos-empty { padding: 40px; text-align: center; color: #9ca3af; font-style: italic; }
+
+        /* Aviso sin alumnos */
+        .alumnos-warning { padding: 10px 14px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; font-size: 0.88rem; color: #92400e; margin-bottom: 14px; }
+        .alumnos-warning strong { font-weight: 700; }
+
+        /* ── SEMÁFORO ── */
+        .sem-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+        .sem-date { padding: 7px 12px; border: 1.5px solid #d1d5db; border-radius: 7px; font: inherit; font-size: 0.9rem; }
+        .sem-date:focus { outline: none; border-color: var(--color-accent); }
+        .sem-btn { padding: 7px 14px; border: 1.5px solid #d1d5db; border-radius: 7px; background: white; font: inherit; font-size: 0.88rem; font-weight: 700; color: #374151; cursor: pointer; }
+        .sem-btn:hover { border-color: var(--color-accent); color: var(--color-accent-strong); }
+        .sem-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+        .sem-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid #e5e7eb; background: white; }
+        .sem-row.state-green  { background: #f0fdf4; border-color: #86efac; }
+        .sem-row.state-yellow { background: #fefce8; border-color: #fde047; }
+        .sem-row.state-red    { background: #fff1f2; border-color: #fca5a5; }
+        .sem-name { flex: 1; font-size: 0.88rem; font-weight: 600; color: #1f2937; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sem-btns { display: flex; gap: 4px; flex-shrink: 0; }
+        .sem-state-btn { width: 32px; height: 32px; border-radius: 6px; border: 1.5px solid transparent; font-size: 0.9rem; cursor: pointer; background: #f3f4f6; transition: all 0.12s; display: flex; align-items: center; justify-content: center; }
+        .sem-state-btn:hover { transform: scale(1.1); }
+        .sem-state-btn.active-green  { background: #dcfce7; border-color: #22c55e; }
+        .sem-state-btn.active-yellow { background: #fef9c3; border-color: #eab308; }
+        .sem-state-btn.active-red    { background: #fee2e2; border-color: #ef4444; }
+        .sem-summary { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+        .sem-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 0.85rem; font-weight: 700; }
+        .sem-chip.green  { background: #dcfce7; color: #166534; }
+        .sem-chip.yellow { background: #fef9c3; color: #92400e; }
+        .sem-chip.red    { background: #fee2e2; color: #991b1b; }
+        .sem-chip.grey   { background: #f3f4f6; color: #6b7280; }
+
+        /* ── LISTA DE CONTROL ── */
+        .lista-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+        .lista-col-input { padding: 7px 12px; border: 1.5px solid #d1d5db; border-radius: 7px; font: inherit; font-size: 0.9rem; min-width: 180px; }
+        .lista-col-input:focus { outline: none; border-color: var(--color-accent); }
+        .lista-add-btn { padding: 7px 14px; border-radius: 7px; border: none; background: var(--color-accent); color: white; font: inherit; font-size: 0.88rem; font-weight: 700; cursor: pointer; }
+        .lista-add-btn:hover { background: var(--color-accent); }
+        .lista-sec-btn { padding: 7px 14px; border: 1.5px solid #d1d5db; border-radius: 7px; background: white; font: inherit; font-size: 0.88rem; font-weight: 700; color: #374151; cursor: pointer; }
+        .lista-sec-btn:hover { border-color: var(--color-accent); color: var(--color-accent-strong); }
+        .lista-table-wrap { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 8px; max-height: 60vh; overflow-y: auto; }
+        .lista-table { border-collapse: collapse; min-width: 100%; font-size: 0.88rem; }
+        .lista-table th { position: sticky; top: 0; background: var(--color-accent-strong); color: white; padding: 9px 12px; font-weight: 700; white-space: nowrap; text-align: center; z-index: 2; }
+        .lista-table th.th-nombre { text-align: left; min-width: 160px; position: sticky; left: 0; z-index: 3; }
+        .lista-table td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; text-align: center; }
+        .lista-table td.td-nombre { text-align: left; font-weight: 600; position: sticky; left: 0; background: white; z-index: 1; }
+        .lista-table tbody tr:nth-child(even) td { background: #fafafa; }
+        .lista-table tbody tr:nth-child(even) td.td-nombre { background: #fafafa; }
+        .lista-table tbody tr:hover td { background: #eef2ff; }
+        .lista-table tbody tr:hover td.td-nombre { background: #eef2ff; }
+        .lista-check { width: 18px; height: 18px; accent-color: var(--color-accent); cursor: pointer; }
+        .lista-col-header { display: flex; align-items: center; gap: 5px; justify-content: center; }
+        .lista-del-col { background: none; border: none; cursor: pointer; font-size: 0.8rem; color: #fca5a5; padding: 0 2px; line-height: 1; }
+        .lista-del-col:hover { color: #dc2626; }
+    </style>
+</head>
+<body class="ux-app-shell ux-page-utilidades">
+<div class="container">
+    <nav class="page-nav">
+        <div class="nav-group">
+            <button class="nav-button" type="button" onclick="window.history.back()">Atrás</button>
+            <a class="nav-link" href="index.html">Inicio</a>
+        </div>
+    </nav>
+
+    <header class="header">
+        <h1>🛠 Utilidades de Aula</h1>
+        <p>Herramientas para el día a día en clase</p>
+    </header>
+
+    <div class="tabs">
+        <button class="tab-btn active" type="button" onclick="cambiarTab('timer')">⏱ Temporizador</button>
+        <button class="tab-btn" type="button" onclick="cambiarTab('horario')">📅 Horario</button>
+        <button class="tab-btn" type="button" onclick="cambiarTab('azar')">🎲 Alumno al azar</button>
+        <button class="tab-btn" type="button" onclick="cambiarTab('grupos')">👥 Agrupaciones</button>
+        <button class="tab-btn" type="button" onclick="cambiarTab('semaforo')">🚦 Semáforo</button>
+        <button class="tab-btn" type="button" onclick="cambiarTab('lista')">📋 Lista de control</button>
+    </div>
+
+    <!-- ── TAB: TEMPORIZADOR ── -->
+    <div id="tab-timer" class="tab-content active">
+        <div class="section-title">⏱ Temporizador de aula</div>
+        <div class="timer-wrap">
+            <div class="timer-ring-wrap">
+                <svg width="220" height="220" viewBox="0 0 220 220">
+                    <circle class="timer-ring-bg" cx="110" cy="110" r="95"/>
+                    <circle class="timer-ring-fg" id="timerRing" cx="110" cy="110" r="95"/>
+                </svg>
+                <div class="timer-display">
+                    <div class="timer-time" id="timerDisplay">00:00</div>
+                    <div class="timer-label" id="timerLabel">Listo</div>
+                </div>
+            </div>
+
+            <div class="timer-presets">
+                <button class="preset-btn" type="button" onclick="setPreset(5)">5 min</button>
+                <button class="preset-btn" type="button" onclick="setPreset(10)">10 min</button>
+                <button class="preset-btn" type="button" onclick="setPreset(15)">15 min</button>
+                <button class="preset-btn" type="button" onclick="setPreset(20)">20 min</button>
+                <button class="preset-btn" type="button" onclick="setPreset(30)">30 min</button>
+                <div class="timer-custom">
+                    <input type="number" id="customMinutes" min="1" max="180" placeholder="min" title="Minutos personalizado">
+                    <button class="preset-btn" type="button" onclick="setCustom()">Personalizar</button>
+                </div>
+            </div>
+
+            <div class="timer-controls">
+                <button class="timer-btn start" id="btnTimerStart" type="button" onclick="timerStartPause()">▶ Iniciar</button>
+                <button class="timer-btn reset" type="button" onclick="timerReset()">↺ Reiniciar</button>
+            </div>
+            <div class="timer-finished" id="timerFinished" style="display:none;">¡Tiempo!</div>
+        </div>
+    </div>
+
+    <!-- ── TAB: HORARIO ── -->
+    <div id="tab-horario" class="tab-content">
+        <div class="section-title">📅 Horario semanal</div>
+        <div class="horario-toolbar">
+            <button class="horario-btn" type="button" onclick="horarioEditar()">✏ Editar</button>
+            <button class="horario-btn primary" type="button" id="btnHorarioGuardar" style="display:none;" onclick="horarioGuardar()">💾 Guardar</button>
+            <button class="horario-btn" type="button" onclick="horarioLimpiar()">🗑 Limpiar todo</button>
+            <span style="font-size:0.82rem;color:#9ca3af;margin-left:4px;" id="horarioStatus">Haz clic en Editar para modificar el horario</span>
+        </div>
+        <div class="horario-wrap">
+            <table class="horario-grid" id="horarioTable">
+                <thead>
+                    <tr>
+                        <th class="th-hora">Hora</th>
+                        <th>Lunes</th>
+                        <th>Martes</th>
+                        <th>Miércoles</th>
+                        <th>Jueves</th>
+                        <th>Viernes</th>
+                    </tr>
+                </thead>
+                <tbody id="horarioBody"></tbody>
+            </table>
+        </div>
+        <p class="horario-hint">El horario se guarda localmente en este dispositivo.</p>
+    </div>
+
+    <!-- ── TAB: ALUMNO AL AZAR ── -->
+    <div id="tab-azar" class="tab-content">
+        <div class="section-title">🎲 Selección de alumno al azar</div>
+        <div id="azarAlumnosWarning" class="alumnos-warning" style="display:none;">
+            <strong>Sin alumnos cargados.</strong> Abre primero el Excel desde Inicio para cargar la lista del grupo.
+        </div>
+        <div class="azar-wrap">
+            <div class="azar-stage">
+                <div class="azar-display">
+                    <div class="azar-name empty" id="azarName">Pulsa el botón</div>
+                </div>
+                <div class="azar-stats" id="azarStats"></div>
+                <button class="azar-btn" id="btnAzar" type="button" onclick="seleccionarAzar()">🎲 Seleccionar</button>
+                <button class="azar-reset-btn" type="button" onclick="azarReset()">↺ Reiniciar seleccionados</button>
+                <div class="azar-history" id="azarHistoryWrap" style="display:none;">
+                    <h3>Ya seleccionados</h3>
+                    <div class="azar-history-list" id="azarHistory"></div>
+                </div>
+            </div>
+            <div class="azar-panel">
+                <div class="azar-panel-title">Lista del grupo</div>
+                <div class="azar-list" id="azarList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── TAB: AGRUPACIONES ── -->
+    <div id="tab-grupos" class="tab-content">
+        <div class="section-title">👥 Agrupaciones al azar</div>
+        <div id="gruposAlumnosWarning" class="alumnos-warning" style="display:none;">
+            <strong>Sin alumnos cargados.</strong> Abre primero el Excel desde Inicio para cargar la lista del grupo.
+        </div>
+        <div class="grupos-controls">
+            <div class="grupos-field">
+                <label for="gruposModo">Definir por</label>
+                <select id="gruposModo" onchange="actualizarGruposModo()">
+                    <option value="size">Alumnos por grupo</option>
+                    <option value="count">Número de grupos</option>
+                </select>
+            </div>
+            <div class="grupos-field">
+                <label for="gruposN" id="gruposNLabel">Alumnos por grupo</label>
+                <input type="number" id="gruposN" min="2" max="10" value="4">
+            </div>
+            <button class="grupos-btn" type="button" onclick="crearGrupos()">🎲 Crear grupos</button>
+            <button class="grupos-btn secondary" type="button" onclick="crearGrupos()">↺ Regenerar</button>
+        </div>
+        <div id="gruposResult"></div>
+    </div>
+    <!-- ── TAB: SEMÁFORO ── -->
+    <div id="tab-semaforo" class="tab-content">
+        <div class="section-title">🚦 Semáforo de participación</div>
+        <div id="semaforoAlumnosWarning" class="alumnos-warning" style="display:none;">
+            <strong>Sin alumnos cargados.</strong> Abre primero el Excel desde Inicio.
+        </div>
+        <div class="sem-toolbar">
+            <label style="font-size:0.85rem;font-weight:700;color:#374151;">Sesión:</label>
+            <input type="date" id="semDate" class="sem-date">
+            <button class="sem-btn" type="button" onclick="semNuevaFecha()">+ Nueva sesión hoy</button>
+            <button class="sem-btn" type="button" onclick="semLimpiarFecha()">🗑 Limpiar sesión</button>
+            <span id="semStatus" style="font-size:0.8rem;color:#6b7280;"></span>
+        </div>
+        <div class="sem-grid" id="semGrid"></div>
+        <div class="sem-summary" id="semSummary"></div>
+    </div>
+
+    <!-- ── TAB: LISTA DE CONTROL ── -->
+    <div id="tab-lista" class="tab-content">
+        <div class="section-title">📋 Lista de control</div>
+        <div id="listaAlumnosWarning" class="alumnos-warning" style="display:none;">
+            <strong>Sin alumnos cargados.</strong> Abre primero el Excel desde Inicio.
+        </div>
+        <div class="lista-toolbar">
+            <input type="text" class="lista-col-input" id="listaNewColInput" placeholder="Nueva columna (ej: Tarea entregada)" maxlength="40">
+            <button class="lista-add-btn" type="button" onclick="listaAgregarColumna()">+ Añadir columna</button>
+            <button class="lista-sec-btn" type="button" onclick="listaCopiar()">📋 Copiar tabla</button>
+            <button class="lista-sec-btn" type="button" onclick="listaLimpiar()">🗑 Limpiar todo</button>
+        </div>
+        <div class="lista-table-wrap" id="listaTableWrap">
+            <div style="padding:40px;text-align:center;color:#9ca3af;font-style:italic;" id="listaEmpty">Añade columnas para comenzar.</div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ===== ESTADO GLOBAL =====
+let alumnosLista = [];
+let azarExcluidos = new Set();
+let azarHistorial = [];
+let timerTotal = 0, timerRemaining = 0, timerRunning = false, timerRAF = null, timerLastTick = null;
+let horarioEditando = false;
+const CIRCUM = 2 * Math.PI * 95;
+
+// ===== TABS =====
+const TAB_IDS = ['timer','horario','azar','grupos','semaforo','lista'];
+function cambiarTab(id) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', TAB_IDS[i] === id));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    if (id === 'semaforo') renderSemaforo();
+    if (id === 'lista') renderListaTabla();
+}
+
+// ===== CARGAR ALUMNOS =====
+async function cargarAlumnos() {
+    if (window.electronExcel) {
+        try {
+            const result = await window.electronExcel.getAlumnos();
+            if (result && result.alumnos && result.alumnos.length) {
+                alumnosLista = result.alumnos.map(a => a.nombre).filter(Boolean);
+            }
+        } catch (e) {}
+    }
+    renderAzarList();
+    actualizarAzarStats();
+    if (!alumnosLista.length) {
+        document.getElementById('azarAlumnosWarning').style.display = 'block';
+        document.getElementById('gruposAlumnosWarning').style.display = 'block';
+    }
+}
+
+// ===== TEMPORIZADOR =====
+const ring = document.getElementById('timerRing');
+const display = document.getElementById('timerDisplay');
+const label = document.getElementById('timerLabel');
+const finishedEl = document.getElementById('timerFinished');
+const startBtn = document.getElementById('btnTimerStart');
+
+ring.style.strokeDasharray = CIRCUM;
+ring.style.strokeDashoffset = CIRCUM;
+
+function setPreset(min) {
+    timerReset();
+    timerTotal = timerRemaining = min * 60;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    updateTimerDisplay();
+}
+
+function setCustom() {
+    const val = parseInt(document.getElementById('customMinutes').value, 10);
+    if (!val || val < 1) return;
+    timerReset();
+    timerTotal = timerRemaining = val * 60;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    updateTimerDisplay();
+}
+
+function updateTimerDisplay() {
+    const m = Math.floor(timerRemaining / 60);
+    const s = timerRemaining % 60;
+    display.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    const pct = timerTotal > 0 ? timerRemaining / timerTotal : 1;
+    ring.style.strokeDashoffset = CIRCUM * (1 - pct);
+    const hue = pct > 0.5 ? 'var(--color-accent)' : pct > 0.2 ? '#f59e0b' : '#ef4444';
+    ring.style.stroke = hue;
+}
+
+function timerStartPause() {
+    if (timerRemaining <= 0) return;
+    if (timerRunning) {
+        timerRunning = false;
+        cancelAnimationFrame(timerRAF);
+        startBtn.textContent = '▶ Continuar';
+        startBtn.className = 'timer-btn start';
+        label.textContent = 'Pausado';
+    } else {
+        timerRunning = true;
+        timerLastTick = performance.now();
+        startBtn.textContent = '⏸ Pausar';
+        startBtn.className = 'timer-btn pause';
+        label.textContent = 'En marcha';
+        finishedEl.style.display = 'none';
+        timerTick();
+    }
+}
+
+function timerTick() {
+    if (!timerRunning) return;
+    const now = performance.now();
+    const elapsed = (now - timerLastTick) / 1000;
+    timerLastTick = now;
+    timerRemaining = Math.max(0, timerRemaining - elapsed);
+    updateTimerDisplay();
+    if (timerRemaining <= 0) {
+        timerRunning = false;
+        startBtn.textContent = '▶ Iniciar';
+        startBtn.className = 'timer-btn start';
+        label.textContent = 'Finalizado';
+        finishedEl.style.display = 'block';
+        beep();
+        return;
+    }
+    timerRAF = requestAnimationFrame(timerTick);
+}
+
+function timerReset() {
+    timerRunning = false;
+    cancelAnimationFrame(timerRAF);
+    timerRemaining = timerTotal;
+    startBtn.textContent = '▶ Iniciar';
+    startBtn.className = 'timer-btn start';
+    label.textContent = timerTotal > 0 ? 'Listo' : 'Selecciona tiempo';
+    finishedEl.style.display = 'none';
+    updateTimerDisplay();
+}
+
+function beep() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        [0, 0.3, 0.6].forEach(delay => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.frequency.value = 880;
+            gain.gain.setValueAtTime(0.4, ctx.currentTime + delay);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.3);
+            osc.start(ctx.currentTime + delay);
+            osc.stop(ctx.currentTime + delay + 0.3);
+        });
+    } catch (e) {}
+}
+
+// ===== HORARIO =====
+const HORARIO_KEY = 'aula_horario_v2';
+const HORAS = ['1ª hora','2ª hora','3ª hora','4ª hora','5ª hora','6ª hora','7ª hora'];
+const DIAS = ['Lunes','Martes','Miércoles','Jueves','Viernes'];
+const COLORES = [
+    ['#e0e7ff','var(--color-accent-strong)'], ['#dcfce7','#166534'], ['#fef9c3','#92400e'],
+    ['#fee2e2','#991b1b'], ['#f0f9ff','#075985'], ['#fdf4ff','#7e22ce'],
+    ['#fff7ed','#9a3412'], ['#f0fdf4','#14532d'], ['#fef2f2','#7f1d1d'],
+    ['#eff6ff','#1e40af'], ['#fdf2f8','#831843'], ['#f7fee7','#365314'],
+];
+let horarioData = {};
+let materiaColorMap = {};
+let colorIdx = 0;
+
+// Normaliza celda: siempre devuelve {nombre, excelPath}
+function getCeldaData(key) {
+    const v = horarioData[key];
+    if (!v) return { nombre: '', excelPath: '' };
+    if (typeof v === 'string') return { nombre: v, excelPath: '' }; // migración v1
+    return { nombre: v.nombre || '', excelPath: v.excelPath || '' };
+}
+
+function getColorForMateria(nombre) {
+    if (!nombre) return ['#ffffff','#1f2937'];
+    if (!materiaColorMap[nombre]) {
+        materiaColorMap[nombre] = COLORES[colorIdx % COLORES.length];
+        colorIdx++;
+    }
+    return materiaColorMap[nombre];
+}
+
+function horarioLoad() {
+    // Intentar cargar v2, luego v1 como migración
+    try {
+        const raw = localStorage.getItem(HORARIO_KEY) || localStorage.getItem('aula_horario_v1') || '{}';
+        horarioData = JSON.parse(raw);
+    } catch { horarioData = {}; }
+    colorIdx = 0; materiaColorMap = {};
+    Object.keys(horarioData).forEach(k => { const d = getCeldaData(k); if (d.nombre) getColorForMateria(d.nombre); });
+    renderHorario();
+}
+
+function renderHorario() {
+    const tbody = document.getElementById('horarioBody');
+    const esTauri = Boolean(window.electronExcel);
+    tbody.innerHTML = HORAS.map((hora, hi) => {
+        const celdas = DIAS.map((_, di) => {
+            const key = `${hi}_${di}`;
+            const { nombre, excelPath } = getCeldaData(key);
+            const [bg, fg] = getColorForMateria(nombre);
+            const hasContent = nombre.trim() !== '';
+            const hasExcel = Boolean(excelPath);
+            const fileName = hasExcel ? excelPath.split(/[\\/]/).pop() : '';
+
+            if (horarioEditando) {
+                const excelBtnClass = hasExcel ? 'horario-excel-btn linked' : 'horario-excel-btn';
+                const excelBtnLabel = hasExcel ? `📂 ${escHtml(fileName)}` : '📎 Asociar Excel';
+                const excelBtn = esTauri
+                    ? `<button class="${excelBtnClass}" type="button" onclick="horarioAsociarExcel(${hi},${di})">${excelBtnLabel}</button>`
+                    : '';
+                return `<td><div class="horario-cell editing ${hasContent?'has-content':''} ${hasExcel?'has-excel':''}" style="--cell-bg:${bg};--cell-fg:${fg};flex-direction:column;align-items:flex-start;padding:6px 8px;">
+                    <input type="text" value="${escHtml(nombre)}" maxlength="40"
+                        onchange="horarioCeldaChangeNombre(${hi},${di},this.value)"
+                        oninput="horarioCeldaChangeNombre(${hi},${di},this.value)"
+                        placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font:inherit;font-size:0.88rem;font-weight:600;color:inherit;">
+                    ${excelBtn}
+                </div></td>`;
+            }
+
+            // Vista: si tiene Excel, click carga ese Excel
+            const clickAttr = (hasExcel && esTauri)
+                ? `onclick="horarioAbrirExcel('${key.replace(/'/g,"\\'")}','${escHtml(nombre)}')"` : '';
+            return `<td><div class="horario-cell ${hasContent?'has-content':''} ${hasExcel?'has-excel':''}" style="--cell-bg:${bg};--cell-fg:${fg};flex-direction:column;" ${clickAttr}>
+                ${hasContent ? `<span>${escHtml(nombre)}</span>` : '<span style="color:#d1d5db">—</span>'}
+                ${hasExcel ? `<span class="horario-excel-badge" title="${escHtml(excelPath)}">📂 ${escHtml(fileName)}</span>` : ''}
+            </div></td>`;
+        }).join('');
+        return `<tr><td style="padding:8px 12px;font-size:0.82rem;font-weight:700;color:#6b7280;background:#f8f9ff;border:1px solid #e5e7eb;white-space:nowrap;">${hora}</td>${celdas}</tr>`;
+    }).join('');
+}
+
+function horarioCeldaChangeNombre(hi, di, val) {
+    const key = `${hi}_${di}`;
+    const prev = getCeldaData(key);
+    horarioData[key] = { nombre: val.trim(), excelPath: prev.excelPath };
+    getColorForMateria(val.trim());
+}
+
+async function horarioAsociarExcel(hi, di) {
+    if (!window.electronExcel) return;
+    try {
+        const result = await window.electronExcel.selectFile();
+        if (!result || !result.filePath) return;
+        const key = `${hi}_${di}`;
+        const prev = getCeldaData(key);
+        horarioData[key] = { nombre: prev.nombre, excelPath: result.filePath };
+        renderHorario();
+    } catch (e) {}
+}
+
+async function horarioAbrirExcel(key, nombre) {
+    if (!window.electronExcel) return;
+    const { excelPath } = getCeldaData(key);
+    if (!excelPath) return;
+    const ok = window.appUx && window.appUx.confirm
+        ? await window.appUx.confirm(`¿Cargar el Excel de "${nombre}"?`, { confirmText: 'Cargar' })
+        : confirm(`¿Cargar el Excel de "${nombre}"?`);
+    if (!ok) return;
+    try {
+        await window.electronExcel.setSelectedFile(excelPath);
+        window.location.href = 'index.html';
+    } catch (e) {
+        alert('No se pudo cargar el archivo: ' + e.message);
+    }
+}
+
+function horarioEditar() {
+    horarioEditando = true;
+    document.getElementById('btnHorarioGuardar').style.display = '';
+    document.getElementById('horarioStatus').textContent = 'Editando — escribe en las celdas';
+    renderHorario();
+}
+
+function horarioGuardar() {
+    horarioEditando = false;
+    document.getElementById('btnHorarioGuardar').style.display = 'none';
+    document.getElementById('horarioStatus').textContent = 'Guardado';
+    colorIdx = 0; materiaColorMap = {};
+    Object.keys(horarioData).forEach(k => { const d = getCeldaData(k); if (d.nombre) getColorForMateria(d.nombre); });
+    localStorage.setItem(HORARIO_KEY, JSON.stringify(horarioData));
+    renderHorario();
+    setTimeout(() => document.getElementById('horarioStatus').textContent = 'Haz clic en Editar para modificar el horario', 2000);
+}
+
+function horarioLimpiar() {
+    if (!confirm('¿Limpiar todo el horario?')) return;
+    horarioData = {}; materiaColorMap = {}; colorIdx = 0;
+    localStorage.removeItem(HORARIO_KEY);
+    localStorage.removeItem('aula_horario_v1');
+    horarioEditando = false;
+    document.getElementById('btnHorarioGuardar').style.display = 'none';
+    document.getElementById('horarioStatus').textContent = 'Horario limpiado';
+    renderHorario();
+}
+
+// ===== ALUMNO AL AZAR =====
+function renderAzarList() {
+    const list = document.getElementById('azarList');
+    if (!alumnosLista.length) {
+        list.innerHTML = '<div style="padding:16px;text-align:center;color:#9ca3af;font-size:0.85rem;">Sin alumnos</div>';
+        return;
+    }
+    list.innerHTML = alumnosLista.map((nombre, i) => {
+        const excl = azarExcluidos.has(i);
+        return `<div class="azar-list-item ${excl ? 'excluded' : ''}">
+            <input type="checkbox" id="azarChk_${i}" ${excl ? '' : 'checked'}
+                onchange="toggleExcluido(${i}, !this.checked)">
+            <label for="azarChk_${i}" style="cursor:pointer;flex:1;">${escHtml(nombre)}</label>
+        </div>`;
+    }).join('');
+}
+
+function toggleExcluido(i, excl) {
+    if (excl) azarExcluidos.add(i); else azarExcluidos.delete(i);
+    renderAzarList();
+    actualizarAzarStats();
+}
+
+function actualizarAzarStats() {
+    const disponibles = alumnosLista.length - azarExcluidos.size;
+    const stats = document.getElementById('azarStats');
+    stats.textContent = alumnosLista.length
+        ? `${disponibles} disponibles de ${alumnosLista.length}`
+        : '';
+    document.getElementById('btnAzar').disabled = disponibles === 0;
+}
+
+let azarRollingRAF = null;
+let azarRollingStop = false;
+
+function seleccionarAzar() {
+    const disponibles = alumnosLista
+        .map((n, i) => ({ nombre: n, i }))
+        .filter(a => !azarExcluidos.has(a.i));
+    if (!disponibles.length) return;
+
+    const elegido = disponibles[Math.floor(Math.random() * disponibles.length)];
+    const nameEl = document.getElementById('azarName');
+    document.getElementById('btnAzar').disabled = true;
+
+    let ticks = 0;
+    const totalTicks = 24 + Math.floor(Math.random() * 10);
+    let delay = 50;
+
+    function roll() {
+        const rand = disponibles[Math.floor(Math.random() * disponibles.length)];
+        nameEl.textContent = rand.nombre;
+        nameEl.className = 'azar-name rolling';
+        ticks++;
+        if (ticks >= totalTicks) {
+            nameEl.textContent = elegido.nombre;
+            nameEl.className = 'azar-name';
+            azarHistorial.push(elegido.nombre);
+            azarExcluidos.add(elegido.i);
+            renderAzarList();
+            actualizarAzarStats();
+            renderAzarHistorial();
+            document.getElementById('btnAzar').disabled = false;
+            return;
+        }
+        delay = Math.min(delay * 1.12, 300);
+        setTimeout(roll, delay);
+    }
+    roll();
+}
+
+function renderAzarHistorial() {
+    const wrap = document.getElementById('azarHistoryWrap');
+    const list = document.getElementById('azarHistory');
+    if (!azarHistorial.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    list.innerHTML = azarHistorial.map((n, i) =>
+        `<div class="history-chip">${escHtml(n)}
+            <button type="button" title="Quitar de historial" onclick="quitarHistorial(${i})">✕</button>
+        </div>`
+    ).join('');
+}
+
+function quitarHistorial(i) {
+    const nombre = azarHistorial[i];
+    azarHistorial.splice(i, 1);
+    const idx = alumnosLista.indexOf(nombre);
+    if (idx >= 0) azarExcluidos.delete(idx);
+    renderAzarList();
+    actualizarAzarStats();
+    renderAzarHistorial();
+}
+
+function azarReset() {
+    azarExcluidos.clear();
+    azarHistorial = [];
+    document.getElementById('azarName').textContent = 'Pulsa el botón';
+    document.getElementById('azarName').className = 'azar-name empty';
+    renderAzarList();
+    actualizarAzarStats();
+    renderAzarHistorial();
+}
+
+// ===== AGRUPACIONES =====
+function actualizarGruposModo() {
+    const modo = document.getElementById('gruposModo').value;
+    const lbl = document.getElementById('gruposNLabel');
+    const inp = document.getElementById('gruposN');
+    if (modo === 'size') {
+        lbl.textContent = 'Alumnos por grupo';
+        inp.value = 4;
+        inp.min = 2; inp.max = 10;
+    } else {
+        lbl.textContent = 'Número de grupos';
+        inp.value = Math.max(2, Math.round(alumnosLista.length / 4));
+        inp.min = 2; inp.max = Math.max(2, alumnosLista.length);
+    }
+}
+
+function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+function crearGrupos() {
+    const result = document.getElementById('gruposResult');
+    if (!alumnosLista.length) {
+        result.innerHTML = '<div class="grupos-empty">Sin alumnos cargados.</div>';
+        return;
+    }
+    const modo = document.getElementById('gruposModo').value;
+    const n = Math.max(2, parseInt(document.getElementById('gruposN').value, 10) || 4);
+    const mezclados = shuffle(alumnosLista);
+
+    let grupos;
+    if (modo === 'size') {
+        grupos = [];
+        for (let i = 0; i < mezclados.length; i += n) grupos.push(mezclados.slice(i, i + n));
+    } else {
+        grupos = Array.from({ length: n }, () => []);
+        mezclados.forEach((a, i) => grupos[i % n].push(a));
+    }
+
+    const GRUP_COLORS = [
+        ['#e0e7ff','var(--color-accent-strong)'],['#dcfce7','#166534'],['#fef9c3','#92400e'],
+        ['#fee2e2','#991b1b'],['#f0f9ff','#075985'],['#fdf4ff','#7e22ce'],
+        ['#fff7ed','#9a3412'],['#f7fee7','#365314'],['#fef2f2','#7f1d1d'],
+    ];
+
+    let html = `<div class="grupos-info">
+        ${grupos.length} grupos · ${mezclados.length} alumnos
+        ${modo === 'size' ? `· ${n} por grupo` : `· grupos de ${Math.floor(mezclados.length / n)}–${Math.ceil(mezclados.length / n)}`}
+    </div>
+    <div class="grupos-grid">`;
+    grupos.forEach((g, gi) => {
+        const [bg, fg] = GRUP_COLORS[gi % GRUP_COLORS.length];
+        html += `<div class="grupo-card" style="--gc:${bg};--gct:${fg}">
+            <div class="grupo-card-header">Grupo ${gi + 1} (${g.length})</div>
+            <div class="grupo-card-body">
+                ${g.map(n => `<div class="grupo-member">${escHtml(n)}</div>`).join('')}
+            </div>
+        </div>`;
+    });
+    html += `</div>
+    <button class="grupos-copy-btn" type="button" onclick="copiarGrupos()">📋 Copiar al portapapeles</button>`;
+    result.innerHTML = html;
+    result._grupos = grupos;
+}
+
+function copiarGrupos() {
+    const result = document.getElementById('gruposResult');
+    const grupos = result._grupos;
+    if (!grupos) return;
+    const txt = grupos.map((g, i) => `Grupo ${i+1}: ${g.join(', ')}`).join('\n');
+    navigator.clipboard.writeText(txt).then(() => {
+        const btn = result.querySelector('.grupos-copy-btn');
+        btn.textContent = '✓ Copiado';
+        setTimeout(() => btn.textContent = '📋 Copiar al portapapeles', 1800);
+    }).catch(() => {});
+}
+
+// ===== SEMÁFORO =====
+const SEM_KEY = 'aula_semaforo_v1';
+let semData = {}; // { fecha: { nombre: 'green'|'yellow'|'red'|'' } }
+
+function semLoad() {
+    try { semData = JSON.parse(localStorage.getItem(SEM_KEY) || '{}'); } catch { semData = {}; }
+}
+
+function semSave() {
+    localStorage.setItem(SEM_KEY, JSON.stringify(semData));
+}
+
+function semHoy() {
+    return new Date().toISOString().split('T')[0];
+}
+
+function semSetState(nombre, estado) {
+    const fecha = document.getElementById('semDate').value || semHoy();
+    if (!semData[fecha]) semData[fecha] = {};
+    semData[fecha][nombre] = estado === semData[fecha][nombre] ? '' : estado;
+    semSave();
+    renderSemaforo();
+}
+
+function semNuevaFecha() {
+    const hoy = semHoy();
+    document.getElementById('semDate').value = hoy;
+    if (!semData[hoy]) semData[hoy] = {};
+    renderSemaforo();
+}
+
+function semLimpiarFecha() {
+    const fecha = document.getElementById('semDate').value || semHoy();
+    delete semData[fecha];
+    semSave();
+    renderSemaforo();
+}
+
+function renderSemaforo() {
+    const grid = document.getElementById('semGrid');
+    const summary = document.getElementById('semSummary');
+    const warning = document.getElementById('semaforoAlumnosWarning');
+    const fecha = document.getElementById('semDate').value || semHoy();
+    const session = semData[fecha] || {};
+
+    if (!alumnosLista.length) {
+        warning.style.display = 'block';
+        grid.innerHTML = ''; summary.innerHTML = '';
+        return;
+    }
+    warning.style.display = 'none';
+
+    let green = 0, yellow = 0, red = 0, none = 0;
+    grid.innerHTML = alumnosLista.map(nombre => {
+        const st = session[nombre] || '';
+        if (st === 'green') green++;
+        else if (st === 'yellow') yellow++;
+        else if (st === 'red') red++;
+        else none++;
+        const rowClass = st ? `state-${st}` : '';
+        return `<div class="sem-row ${rowClass}">
+            <span class="sem-name" title="${escHtml(nombre)}">${escHtml(nombre)}</span>
+            <div class="sem-btns">
+                <button class="sem-state-btn ${st==='green'?'active-green':''}" type="button"
+                    onclick="semSetState('${escHtml(nombre).replace(/'/g,"\\'")}','green')" title="Participa">✓</button>
+                <button class="sem-state-btn ${st==='yellow'?'active-yellow':''}" type="button"
+                    onclick="semSetState('${escHtml(nombre).replace(/'/g,"\\'")}','yellow')" title="Normal/pasivo">~</button>
+                <button class="sem-state-btn ${st==='red'?'active-red':''}" type="button"
+                    onclick="semSetState('${escHtml(nombre).replace(/'/g,"\\'")}','red')" title="No participa">✗</button>
+            </div>
+        </div>`;
+    }).join('');
+
+    summary.innerHTML = `
+        <span class="sem-chip green">✓ ${green} participan</span>
+        <span class="sem-chip yellow">~ ${yellow} pasivos</span>
+        <span class="sem-chip red">✗ ${red} no participan</span>
+        <span class="sem-chip grey">⬜ ${none} sin marcar</span>`;
+}
+
+// ===== LISTA DE CONTROL =====
+const LISTA_KEY = 'aula_lista_v1';
+let listaColumnas = []; // [{id, nombre}]
+let listaDatos = {};    // { colId: { alumnoNombre: true/false } }
+
+function listaLoad() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(LISTA_KEY) || '{}');
+        listaColumnas = raw.columnas || [];
+        listaDatos    = raw.datos    || {};
+    } catch { listaColumnas = []; listaDatos = {}; }
+}
+
+function listaSave() {
+    localStorage.setItem(LISTA_KEY, JSON.stringify({ columnas: listaColumnas, datos: listaDatos }));
+}
+
+function listaAgregarColumna() {
+    const inp = document.getElementById('listaNewColInput');
+    const nombre = inp.value.trim();
+    if (!nombre) { inp.focus(); return; }
+    const id = `col_${Date.now()}`;
+    listaColumnas.push({ id, nombre });
+    listaDatos[id] = {};
+    listaSave();
+    inp.value = '';
+    renderListaTabla();
+}
+
+function listaEliminarColumna(id) {
+    listaColumnas = listaColumnas.filter(c => c.id !== id);
+    delete listaDatos[id];
+    listaSave();
+    renderListaTabla();
+}
+
+function listaToggle(colId, nombre, checked) {
+    if (!listaDatos[colId]) listaDatos[colId] = {};
+    listaDatos[colId][nombre] = checked;
+    listaSave();
+}
+
+function listaLimpiar() {
+    if (!confirm('¿Limpiar toda la lista de control?')) return;
+    listaColumnas = []; listaDatos = {};
+    listaSave();
+    renderListaTabla();
+}
+
+function listaCopiar() {
+    if (!listaColumnas.length || !alumnosLista.length) return;
+    const headers = ['Alumno', ...listaColumnas.map(c => c.nombre)];
+    const rows = [headers, ...alumnosLista.map(nombre =>
+        [nombre, ...listaColumnas.map(c => (listaDatos[c.id]?.[nombre] ? '✓' : ''))]
+    )];
+    navigator.clipboard.writeText(rows.map(r => r.join('\t')).join('\n')).then(() => {
+        const btn = document.querySelector('.lista-sec-btn');
+        btn.textContent = '✓ Copiado';
+        setTimeout(() => btn.textContent = '📋 Copiar tabla', 1800);
+    }).catch(() => {});
+}
+
+function renderListaTabla() {
+    const wrap = document.getElementById('listaTableWrap');
+    const warning = document.getElementById('listaAlumnosWarning');
+
+    if (!alumnosLista.length) {
+        warning.style.display = 'block';
+        wrap.innerHTML = '';
+        return;
+    }
+    warning.style.display = 'none';
+
+    if (!listaColumnas.length) {
+        wrap.innerHTML = '<div style="padding:40px;text-align:center;color:#9ca3af;font-style:italic;">Añade columnas para comenzar.</div>';
+        return;
+    }
+
+    const thead = `<thead><tr>
+        <th class="th-nombre">Alumno</th>
+        ${listaColumnas.map(c => `<th>
+            <div class="lista-col-header">
+                ${escHtml(c.nombre)}
+                <button class="lista-del-col" type="button" onclick="listaEliminarColumna('${c.id}')" title="Eliminar columna">✕</button>
+            </div>
+        </th>`).join('')}
+    </tr></thead>`;
+
+    const tbody = `<tbody>${alumnosLista.map(nombre => {
+        const cells = listaColumnas.map(c => {
+            const checked = listaDatos[c.id]?.[nombre] || false;
+            return `<td><input type="checkbox" class="lista-check" ${checked ? 'checked' : ''}
+                onchange="listaToggle('${c.id}','${escHtml(nombre).replace(/'/g,"\\'")}',this.checked)"></td>`;
+        }).join('');
+        return `<tr><td class="td-nombre">${escHtml(nombre)}</td>${cells}</tr>`;
+    }).join('')}</tbody>`;
+
+    wrap.innerHTML = `<table class="lista-table">${thead}${tbody}</table>`;
+}
+
+// ===== UTILS =====
+function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', () => {
+    updateTimerDisplay();
+    horarioLoad();
+    semLoad();
+    listaLoad();
+    // Fecha de semáforo = hoy
+    document.getElementById('semDate').value = semHoy();
+    cargarAlumnos();
+});
+</script>
+</body>
+</html>

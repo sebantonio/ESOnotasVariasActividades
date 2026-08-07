@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build artifacts
+        uses: actions/cache@v4
+        with:
+          # src-tauri/.cargo/config.toml fija target-dir en C:\cargo-target\plantillaNotas
+          # (necesario tambien en local por espacio en disco) — hay que cachear esa ruta,
+          # no el "target/" por defecto, o la cache nunca se usaria.
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            C:\cargo-target\plantillaNotas
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: cargo build --release
+        run: cargo build --release
+
+      - name: cargo test
+        run: cargo test

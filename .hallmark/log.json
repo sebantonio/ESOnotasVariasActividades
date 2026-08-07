@@ -1,0 +1,13 @@
+[
+  {
+    "date": "2026-08-06",
+    "scope": "app",
+    "genre": "modern-minimal",
+    "macrostructure": "adapted-app-workbench (ver design.md)",
+    "theme": "custom (indigo/teal existente refinado a OKLCH)",
+    "theme_axes": "light / grotesque-sans / cool",
+    "vibe": "herramienta profesional de datos para un profesor de ESO",
+    "enrichment": "none",
+    "brief": "Gestor de Notas ESO - rediseno visual completo de las 14 paginas que comparten ux-common.css, sin tocar logica ni IPC"
+  }
+]

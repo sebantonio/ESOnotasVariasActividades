@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Asteroides - ESO Notas</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            font-family: 'Courier New', monospace;
+            color: #0f0;
+            overflow: hidden;
+        }
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            border: 2px solid #0f0;
+            background: #000;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 18px;
+            text-shadow: 0 0 10px #0f0;
+            z-index: 10;
+        }
+        #puntos {
+            margin-bottom: 10px;
+        }
+        #nivel {
+            margin-bottom: 10px;
+        }
+        #vidas {
+            color: #f00;
+        }
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 40px;
+            border: 2px solid #f00;
+            text-align: center;
+            z-index: 100;
+            display: none;
+            border-radius: 10px;
+        }
+        #gameOver h1 {
+            font-size: 48px;
+            color: #f00;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px #f00;
+        }
+        #gameOver p {
+            font-size: 24px;
+            color: #0f0;
+            margin: 10px 0;
+        }
+        #gameOver button {
+            margin-top: 20px;
+            padding: 15px 30px;
+            font-size: 18px;
+            background: #0f0;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        #gameOver button:hover {
+            background: #00ff00;
+            box-shadow: 0 0 20px #0f0;
+        }
+        #inicio {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            padding: 40px;
+            border: 2px solid #0f0;
+            text-align: center;
+            z-index: 100;
+            border-radius: 10px;
+        }
+        #inicio h1 {
+            font-size: 48px;
+            color: #0f0;
+            margin-bottom: 30px;
+            text-shadow: 0 0 20px #0f0;
+        }
+        #inicio .instrucciones {
+            font-size: 16px;
+            margin: 15px 0;
+            line-height: 1.8;
+        }
+        #inicio button {
+            margin-top: 30px;
+            padding: 15px 40px;
+            font-size: 20px;
+            background: #0f0;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        #inicio button:hover {
+            background: #00ff00;
+            box-shadow: 0 0 20px #0f0;
+        }
+        .info {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="hud">
+            <div id="puntos">PUNTOS: 0</div>
+            <div id="nivel">NIVEL: 1</div>
+            <div id="vidas">VIDAS: 3</div>
+            <button onclick="gameOver()" style="position: absolute; top: 10px; right: 10px; padding: 8px 15px; background: #f00; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">SALIR</button>
+        </div>
+        <div id="inicio">
+            <h1>🚀 ASTEROIDES</h1>
+            <div class="instrucciones">
+                <div>← → Mover nave</div>
+                <div>ESPACIO Disparar</div>
+                <div>Destruye asteroides para ganar puntos</div>
+            </div>
+            <button onclick="iniciarJuego()">COMENZAR</button>
+            <div class="info">
+                <a href="index.html" style="color: #0f0; text-decoration: none;">← Volver</a>
+            </div>
+        </div>
+        <div id="gameOver">
+            <h1>GAME OVER</h1>
+            <p>Puntos: <span id="puntosFinales">0</span></p>
+            <p>Nivel: <span id="nivelFinal">1</span></p>
+            <button onclick="location.reload()">REINTENTAR</button>
+            <button onclick="location.href='index.html'" style="background: #666; margin-left: 10px;">SALIR</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = 800;
+        canvas.height = 600;
+
+        // Clases del juego
+        class Nave {
+            constructor() {
+                this.x = canvas.width / 2;
+                this.y = canvas.height - 40;
+                this.ancho = 20;
+                this.alto = 30;
+                this.velocidad = 5;
+                this.izquierda = false;
+                this.derecha = false;
+            }
+
+            actualizar() {
+                if (this.izquierda && this.x > 0) this.x -= this.velocidad;
+                if (this.derecha && this.x + this.ancho < canvas.width) this.x += this.velocidad;
+            }
+
+            dibujar() {
+                ctx.fillStyle = '#0f0';
+                ctx.beginPath();
+                ctx.moveTo(this.x + this.ancho / 2, this.y);
+                ctx.lineTo(this.x, this.y + this.alto);
+                ctx.lineTo(this.x + this.ancho, this.y + this.alto);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = '#0f0';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            disparar() {
+                return new Bala(this.x + this.ancho / 2, this.y);
+            }
+        }
+
+        class Bala {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.velocidad = 7;
+                this.radio = 3;
+            }
+
+            actualizar() {
+                this.y -= this.velocidad;
+            }
+
+            dibujar() {
+                ctx.fillStyle = '#0f0';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radio, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            estaFuera() {
+                return this.y < 0;
+            }
+        }
+
+        class Asteroide {
+            constructor(x, y, tamaño) {
+                this.x = x;
+                this.y = y;
+                this.tamaño = tamaño;
+                this.velocidadX = (Math.random() - 0.5) * 3;
+                this.velocidadY = Math.random() * 2 + 1;
+                this.rotacion = Math.random() * Math.PI * 2;
+                this.rotacionVel = (Math.random() - 0.5) * 0.1;
+            }
+
+            actualizar() {
+                this.x += this.velocidadX;
+                this.y += this.velocidadY;
+                this.rotacion += this.rotacionVel;
+
+                if (this.x < 0) this.x = canvas.width;
+                if (this.x > canvas.width) this.x = 0;
+            }
+
+            dibujar() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotacion);
+                ctx.strokeStyle = '#0f0';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let i = 0; i < 8; i++) {
+                    const angulo = (i / 8) * Math.PI * 2;
+                    const radio = this.tamaño * (0.7 + Math.random() * 0.3);
+                    const px = Math.cos(angulo) * radio;
+                    const py = Math.sin(angulo) * radio;
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            colisionaCon(bala) {
+                const dist = Math.hypot(bala.x - this.x, bala.y - this.y);
+                return dist < this.tamaño;
+            }
+        }
+
+        // Variables del juego
+        let nave = new Nave();
+        let balas = [];
+        let asteroides = [];
+        let puntos = 0;
+        let nivel = 1;
+        let vidas = 3;
+        let juegoActivo = false;
+        let ultimoDisparo = 0;
+
+        // Controles
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') nave.izquierda = true;
+            if (e.key === 'ArrowRight') nave.derecha = true;
+            if (e.key === ' ') {
+                e.preventDefault();
+                if (Date.now() - ultimoDisparo > 200) {
+                    balas.push(nave.disparar());
+                    ultimoDisparo = Date.now();
+                }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft') nave.izquierda = false;
+            if (e.key === 'ArrowRight') nave.derecha = false;
+        });
+
+        function iniciarJuego() {
+            document.getElementById('inicio').style.display = 'none';
+            juegoActivo = true;
+            generarAsteroides();
+            bucleJuego();
+        }
+
+        function generarAsteroides() {
+            asteroides = [];
+            const cantidad = 3 + nivel;
+            for (let i = 0; i < cantidad; i++) {
+                asteroides.push(new Asteroide(
+                    Math.random() * canvas.width,
+                    Math.random() * 100 - 100,
+                    20 + Math.random() * 15
+                ));
+            }
+        }
+
+        function actualizarHUD() {
+            document.getElementById('puntos').textContent = `PUNTOS: ${puntos}`;
+            document.getElementById('nivel').textContent = `NIVEL: ${nivel}`;
+            document.getElementById('vidas').textContent = `VIDAS: ${vidas}`;
+        }
+
+        function gameOver() {
+            juegoActivo = false;
+            document.getElementById('puntosFinales').textContent = puntos;
+            document.getElementById('nivelFinal').textContent = nivel;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+
+        function bucleJuego() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (!juegoActivo) return;
+
+            // Actualizar nave
+            nave.actualizar();
+            nave.dibujar();
+
+            // Actualizar balas
+            for (let i = balas.length - 1; i >= 0; i--) {
+                balas[i].actualizar();
+                if (balas[i].estaFuera()) {
+                    balas.splice(i, 1);
+                } else {
+                    balas[i].dibujar();
+                }
+            }
+
+            // Actualizar asteroides
+            for (let i = asteroides.length - 1; i >= 0; i--) {
+                asteroides[i].actualizar();
+                asteroides[i].dibujar();
+
+                // Colisión con balas
+                for (let j = balas.length - 1; j >= 0; j--) {
+                    if (asteroides[i].colisionaCon(balas[j])) {
+                        puntos += Math.round(asteroides[i].tamaño);
+
+                        // Crear asteroides más pequeños
+                        if (asteroides[i].tamaño > 10) {
+                            for (let k = 0; k < 2; k++) {
+                                asteroides.push(new Asteroide(
+                                    asteroides[i].x,
+                                    asteroides[i].y,
+                                    asteroides[i].tamaño / 2
+                                ));
+                            }
+                        }
+
+                        asteroides.splice(i, 1);
+                        balas.splice(j, 1);
+                        break;
+                    }
+                }
+            }
+
+            // Generar nuevos asteroides si hay menos de los requeridos
+            const asteroidesGrandes = asteroides.filter(a => a.tamaño > 18).length;
+            if (asteroidesGrandes < 3 + nivel * 2) {
+                asteroides.push(new Asteroide(
+                    Math.random() * canvas.width,
+                    -50,
+                    25 + Math.random() * 10
+                ));
+            }
+
+            // Verificar colisión nave-asteroide
+            for (let ast of asteroides) {
+                const dist = Math.hypot(nave.x + nave.ancho / 2 - ast.x, nave.y + nave.alto / 2 - ast.y);
+                if (dist < ast.tamaño + 15) {
+                    vidas--;
+                    if (vidas <= 0) {
+                        gameOver();
+                        return;
+                    }
+                    // Reiniciar posición nave
+                    nave.x = canvas.width / 2;
+                    nave.y = canvas.height - 40;
+                    balas = [];
+                    break;
+                }
+            }
+
+            actualizarHUD();
+            requestAnimationFrame(bucleJuego);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notas por Unidad</title>
+    <script src="app-bridge.js"></script>
+    <link rel="stylesheet" href="ux-common.css">
+    <script src="ux-common.js" defer></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { min-height: 100vh; padding: 20px; font-family: var(--font-body); background: var(--color-paper); color: #1f2937; }
+        .container { max-width: 1440px; margin: 0 auto; background: #fff; border-radius: 10px; box-shadow: 0 14px 42px rgba(31,41,55,0.16); overflow: clip; }
+        thead th.th-nombre { position: sticky; left: 0; z-index: 35; background: #eef2ff; }
+        tbody td.td-nombre { position: sticky; left: 0; z-index: 2; background: white; box-shadow: 2px 0 4px rgba(0,0,0,0.08); }
+        tbody tr:hover td.td-nombre { background: #eef2ff; }
+        .page-nav { display: flex; justify-content: space-between; gap: 12px; padding: 14px 16px; background: #f8f9ff; border-bottom: 1px solid #e5e7eb; }
+        .nav-group { display: flex; flex-wrap: wrap; gap: 10px; }
+        .nav-button, .nav-link { display: inline-flex; align-items: center; min-height: 38px; padding: 8px 14px; border-radius: 8px; font-size: 0.92em; font-weight: 700; text-decoration: none; cursor: pointer; }
+        .nav-button { color: var(--color-accent); background: white; border: 2px solid var(--color-accent); }
+        .nav-link { color: white; background: var(--color-accent); border: 2px solid var(--color-accent); }
+        .header { padding: 28px 30px; color: white; background: var(--color-accent-strong); }
+        .header h1 { margin-bottom: 6px; font-size: 1.5rem; }
+        .content { padding: 20px; }
+        .toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 16px 20px; border-bottom: 1px solid #e5e7eb; background: #fafbff; }
+        .toolbar label { font-size: 0.9rem; font-weight: 700; color: #374151; }
+        select { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 7px; font: inherit; font-size: 0.92rem; background: #fff; cursor: pointer; min-width: 220px; }
+        select:focus { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+        .message { padding: 10px 16px; border-radius: 7px; font-size: 0.9rem; margin-bottom: 12px; display: none; }
+        .message.show { display: block; }
+        .message.info { background: #eff6ff; color: #1d4ed8; }
+        .message.success { background: #f0fdf4; color: #166534; }
+        .message.error { background: #fef2f2; color: #991b1b; }
+        .table-container { position: relative; overflow: auto; max-height: calc(100vh - 285px); background: #fff; }
+        table { table-layout: auto; width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.88rem; }
+        thead th { position: sticky; top: 0; z-index: 30; background: #eef2ff; color: var(--color-accent-strong); font-weight: 800; padding: 8px 6px; text-align: center; border-bottom: 2px solid #c7d2fe; white-space: nowrap; vertical-align: bottom; background-clip: padding-box; box-shadow: 0 1px 0 #c7d2fe; }
+        thead tr:nth-child(2) th { top: var(--sticky-head-row-1, 34px); z-index: 29; }
+        thead th.th-nombre { text-align: left; width: 210px; min-width: 210px; max-width: 210px; padding-left: 12px; }
+        thead th.th-final { width: 90px; min-width: 90px; max-width: 90px; background: #1e1b4b !important; color: white !important; vertical-align: middle; }
+        tbody td.td-final { width: 90px; min-width: 90px; max-width: 90px; font-weight: 800; }
+        thead th.th-ce-nota { font-size: 0.68em; font-weight: 800; }
+        tbody tr:nth-child(even) { background: #fafafa; }
+        tbody tr:hover { background: #eef2ff; }
+        tbody td { padding: 7px 6px; border-bottom: 1px solid #f0f0f0; text-align: center; }
+        tbody td.td-nombre { text-align: left; padding-left: 12px; font-weight: 600; }
+        .grade { display: inline-block; padding: 3px 8px; border-radius: 5px; font-weight: 700; font-size: 0.88rem; min-width: 40px; }
+        .grade-ok { background: #dcfce7; color: #166534; }
+        .grade-warn { background: #fef3c7; color: #92400e; }
+        .grade-bad { background: #fee2e2; color: #991b1b; }
+        .grade-empty { background: #f3f4f6; color: #9ca3af; }
+        .th-cr-disabled { background: #f3f4f6; color: #9ca3af; }
+        .td-cr-disabled { background: #f9fafb; }
+        .th-ce { font-size: 0.78em; font-weight: 800; text-align: center; padding: 4px 6px; border-left: 3px solid #fff; }
+        .ce-sep th, .ce-sep td { border-left: 3px solid #c7d2fe; }
+        .ce-sep-body { border-left: 3px solid #c7d2fe !important; }
+        .empty-msg { padding: 40px; text-align: center; color: #9ca3af; font-style: italic; }
+        .pagination { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-top: 1px solid #e5e7eb; background: #fafbff; }
+        .pagination button { padding: 6px 14px; border: 1px solid #d1d5db; border-radius: 6px; background: white; cursor: pointer; font-size: 0.88rem; font-weight: 600; }
+        .pagination button:disabled { opacity: 0.4; cursor: default; }
+        .pagination button:not(:disabled):hover { background: #eef2ff; border-color: var(--color-accent); color: var(--color-accent-strong); }
+        .pagination .page-info { font-size: 0.88rem; color: #374151; }
+        .pagination select.per-page { min-width: auto; padding: 6px 10px; font-size: 0.88rem; }
+        #unidadTitulo { font-size: 0.92rem; color: #d1d5db; font-weight: 400; margin-top: 2px; }
+        .density-toggle, .ce-toggle-all { min-height: 30px; padding: 5px 10px; font-size: 0.82rem; }
+        .ce-toggle { min-height: 24px; padding: 2px 8px; border: 1px solid #cbd5e1; border-radius: 999px; background: #fff; color: #334155; font-size: 0.74rem; font-weight: 850; cursor: pointer; }
+        .ce-toggle:hover { border-color: var(--color-accent); color: var(--color-accent-strong); background: #eef2ff; }
+        body.compact-mode .table-container { max-height: calc(100vh - 245px); }
+        body.compact-mode thead th { padding: 5px 4px !important; font-size: 0.72rem !important; }
+        body.compact-mode thead tr:nth-child(2) th { top: var(--sticky-head-row-1, 28px); }
+        body.compact-mode tbody td { padding: 4px 5px !important; }
+        body.compact-mode .grade { padding: 2px 6px; font-size: 0.78rem; }
+        tr.row-active > td { background-color: #ecfeff !important; }
+        td.col-active, th.col-active { box-shadow: inset 0 0 0 9999px rgba(14, 165, 233, 0.08); }
+        .active-cell { outline: 2px solid #0ea5e9; outline-offset: -2px; }
+        .table-status-bar { position: fixed; left: 16px; right: 16px; bottom: 12px; z-index: 920; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid #dbe4f0; border-radius: 8px; background: rgba(255,255,255,0.96); box-shadow: 0 14px 34px rgba(31,41,55,0.16); backdrop-filter: blur(8px); }
+        .status-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+        .status-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 4px 9px; border: 1px solid #e0e7ff; border-radius: 999px; background: #f8fafc; color: #475569; font-size: 0.8rem; font-weight: 650; white-space: nowrap; }
+        .status-chip strong { color: var(--color-accent-strong); font-weight: 850; }
+    </style>
+</head>
+<body class="ux-app-shell ux-page-visor-unidades">
+<div class="container">
+    <nav class="page-nav">
+        <div class="nav-group">
+            <button class="nav-button" type="button" onclick="window.history.back()">Atrás</button>
+            <a class="nav-link" href="index.html">Inicio</a>
+        </div>
+        <div class="nav-group">
+            <a class="nav-link" href="gestor-notas.html">Introducir notas</a>
+            <a class="nav-link" href="visor-notas.html">Por Evaluacion</a>
+            <a class="nav-link" href="informes.html">Por CE/Unidad</a>
+        </div>
+    </nav>
+
+    <header class="header">
+        <h1>Notas por Unidad</h1>
+        <div id="unidadTitulo"></div>
+    </header>
+
+    <div class="toolbar">
+        <label for="unidadSelect">Unidad:</label>
+        <select id="unidadSelect"><option value="">Cargando...</option></select>
+        <label for="alumnoSelect">Alumno:</label>
+        <select id="alumnoSelect"><option value="">— Todos —</option></select>
+        <button class="pag-btn" id="btnRefresh" type="button" title="Recargar unidad actual">Recargar</button>
+        <button class="pag-btn density-toggle" id="densityToggleButton" type="button">Compacto</button>
+        <button class="pag-btn ce-toggle-all" id="ceToggleAllButton" type="button">Plegar CE</button>
+        <span id="lastSync" style="font-size:0.82rem;color:#6b7280;white-space:nowrap;">Sin sincronizar</span>
+    </div>
+
+    <div class="content">
+        <div id="message" class="message"></div>
+        <div class="table-container">
+            <table id="notasTable">
+                <thead id="notasHead"></thead>
+                <tbody id="notasBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="pagination">
+        <button id="btnPrev" onclick="changePage(-1)" disabled>&#8249; Anterior</button>
+        <span class="page-info" id="pageInfo"></span>
+        <button id="btnNext" onclick="changePage(1)">Siguiente &#8250;</button>
+        <label for="perPageSelect" style="margin-left:auto;font-size:0.88rem;font-weight:600;color:#374151;">Por página:</label>
+        <select id="perPageSelect" class="per-page" onchange="changePerPage()">
+            <option value="10">10</option>
+            <option value="15" selected>15</option>
+            <option value="20">20</option>
+            <option value="30">30</option>
+        </select>
+    </div>
+</div>
+
+<script>
+    const unidadSelect  = document.getElementById("unidadSelect");
+    const alumnoSelect  = document.getElementById("alumnoSelect");
+    const notasHead     = document.getElementById("notasHead");
+    const notasBody     = document.getElementById("notasBody");
+    const messageEl     = document.getElementById("message");
+    const unidadTituloEl= document.getElementById("unidadTitulo");
+    const pageInfoEl    = document.getElementById("pageInfo");
+    const btnPrev       = document.getElementById("btnPrev");
+    const btnNext       = document.getElementById("btnNext");
+    const perPageSelect = document.getElementById("perPageSelect");
+    const btnRefresh    = document.getElementById("btnRefresh");
+    const lastSyncEl    = document.getElementById("lastSync");
+    const densityToggleButton = document.getElementById("densityToggleButton");
+    const ceToggleAllButton = document.getElementById("ceToggleAllButton");
+    const statusFiltered = document.getElementById("statusFiltered");
+    const statusUnidad = document.getElementById("statusUnidad");
+    const statusSync = document.getElementById("statusSync");
+    const DENSITY_PREFS_KEY = "visorUnidadesDensity";
+    const COLLAPSED_CE_KEY = "visorUnidadesCollapsedCe";
+
+    let currentState = null;
+    let currentPage = 0;
+    let perPage = 15;
+    let collapsedCeSet = null;
+
+    function ensureCollapsedCePrefs(groups) {
+        if (collapsedCeSet) return;
+        try {
+            const saved = JSON.parse(localStorage.getItem(COLLAPSED_CE_KEY) || "null");
+            collapsedCeSet = Array.isArray(saved) ? new Set(saved.map(String)) : new Set();
+        } catch {
+            collapsedCeSet = new Set();
+        }
+    }
+
+    function saveCollapsedCePrefs() {
+        try { localStorage.setItem(COLLAPSED_CE_KEY, JSON.stringify(Array.from(collapsedCeSet || []))); } catch {}
+    }
+
+    function toggleCeGroup(key) {
+        if (!collapsedCeSet) collapsedCeSet = new Set();
+        if (collapsedCeSet.has(key)) collapsedCeSet.delete(key);
+        else collapsedCeSet.add(key);
+        saveCollapsedCePrefs();
+        renderTable();
+    }
+
+    function toggleAllCeGroups() {
+        const groups = getCurrentCeGroups();
+        ensureCollapsedCePrefs(groups);
+        const allCollapsed = groups.length > 0 && groups.every((g) => collapsedCeSet.has(String(g.ce)));
+        collapsedCeSet = allCollapsed ? new Set() : new Set(groups.map((g) => String(g.ce)));
+        saveCollapsedCePrefs();
+        renderTable();
+    }
+
+    function getCurrentCeGroups() {
+        const data = currentState;
+        if (!data) return [];
+        const criterios = (data.criterios || [])
+            .filter((cr) => numberFrom(cr.ponderacion) > 0)
+            .sort((a, b) => criterionOrder(a.codigo) - criterionOrder(b.codigo));
+        const groups = [];
+        criterios.forEach((cr, i) => {
+            const ce = ceOf(cr.codigo);
+            if (!groups.length || groups[groups.length - 1].ce !== ce) {
+                groups.push({ ce, count: 1, firstIdx: i });
+            } else {
+                groups[groups.length - 1].count++;
+            }
+        });
+        return groups;
+    }
+
+    function showMessage(text, type) {
+        messageEl.textContent = text;
+        messageEl.className = "message " + type + " show";
+    }
+
+    function formatNote(n) {
+        if (n === null || n === undefined || isNaN(n)) return "";
+        return n.toFixed(2).replace(".", ",");
+    }
+
+    function gradeClass(display) {
+        if (!display || display === "") return "grade-empty";
+        const n = parseFloat(String(display).replace(",", "."));
+        if (isNaN(n) || n === 0) return "grade-empty";
+        if (n >= 5) return "grade-ok";
+        if (n >= 3) return "grade-warn";
+        return "grade-bad";
+    }
+
+    function escapeHtml(s) {
+        return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function numberFrom(value) {
+        if (value === null || value === undefined || value === "") return 0;
+        if (typeof value === "number") return value;
+        const n = parseFloat(String(value).trim().replace("%", "").replace(",", "."));
+        return isNaN(n) ? 0 : n;
+    }
+
+    function criterionOrder(codigo) {
+        const match = String(codigo || "").match(/^CR(\d+)\.(\d+)/i);
+        if (!match) return Number.MAX_SAFE_INTEGER;
+        return Number(match[1]) * 1000 + Number(match[2]);
+    }
+
+    function parseNote(v) {
+        if (v === null || v === undefined || v === '') return null;
+        const n = parseFloat(String(v).replace(',', '.'));
+        return isNaN(n) ? null : n;
+    }
+
+    function ceOf(codigo) {
+        const m = String(codigo || "").match(/^CR(\d+)\./i);
+        return m ? m[1] : codigo;
+    }
+
+    // Nota CE (media ponderada por CE) y Nota Final de la unidad (media ponderada de todos los CR),
+    // usando MAX(nota, rec) igual que en gestor-recuperaciones.
+    function computeAlumnoNotas(alumno, criterios) {
+        const ceSums = {};
+        let wsumTotal = 0, wtotalTotal = 0;
+        criterios.forEach((cr) => {
+            const ce = ceOf(cr.codigo);
+            if (!ceSums[ce]) ceSums[ce] = { wsum: 0, wtotal: 0 };
+            const crData = (alumno.crNotas || []).find((n) => n.codigo === cr.codigo);
+            if (!crData) return;
+            const rec = parseNote(crData.recDisplay);
+            const base = parseNote(crData.nota) ?? parseNote(crData.display);
+            const eff = (rec !== null && rec > 0) ? rec : base;
+            if (eff === null || eff <= 0) return;
+            const p = numberFrom(cr.ponderacion) || 1;
+            ceSums[ce].wsum += eff * p; ceSums[ce].wtotal += p;
+            wsumTotal += eff * p; wtotalTotal += p;
+        });
+        const ceNotas = {};
+        Object.keys(ceSums).forEach((ce) => {
+            const s = ceSums[ce];
+            if (s.wtotal > 0) ceNotas[ce] = s.wsum / s.wtotal;
+        });
+        return { ceNotas, final: wtotalTotal > 0 ? wsumTotal / wtotalTotal : null };
+    }
+
+    function applyDensityPreference() {
+        const compact = localStorage.getItem(DENSITY_PREFS_KEY) === "compact";
+        document.body.classList.toggle("compact-mode", compact);
+        if (densityToggleButton) densityToggleButton.textContent = compact ? "Amplio" : "Compacto";
+        refreshStickyHeaderOffset();
+    }
+
+    function toggleDensityMode() {
+        const compact = !document.body.classList.contains("compact-mode");
+        localStorage.setItem(DENSITY_PREFS_KEY, compact ? "compact" : "wide");
+        applyDensityPreference();
+    }
+
+    function refreshStickyHeaderOffset() {
+        requestAnimationFrame(() => {
+            const row = notasHead?.querySelector("tr:first-child");
+            const anchor = row?.querySelector("th:not([rowspan])") || row;
+            const height = anchor ? Math.ceil(anchor.getBoundingClientRect().height) : 34;
+            document.documentElement.style.setProperty("--sticky-head-row-1", `${height}px`);
+        });
+    }
+
+    function updateStatusBar(filteredCount) {
+        if (statusFiltered) statusFiltered.textContent = String(filteredCount ?? 0);
+        if (statusUnidad) statusUnidad.textContent = unidadSelect.value || "-";
+        if (statusSync) statusSync.textContent = lastSyncEl?.textContent || "Sin sincronizar";
+    }
+
+    function clearActiveCellHighlight() {
+        document.querySelectorAll(".row-active, .col-active, .active-cell").forEach((el) => {
+            el.classList.remove("row-active", "col-active", "active-cell");
+        });
+    }
+
+    function highlightActiveCell(cell) {
+        clearActiveCellHighlight();
+        const row = cell.closest("tr");
+        const colKey = cell.dataset.colKey;
+        if (row) row.classList.add("row-active");
+        cell.classList.add("active-cell");
+        if (colKey) {
+            document.querySelectorAll("[data-col-key]").forEach((el) => {
+                if (el.dataset.colKey === String(colKey)) el.classList.add("col-active");
+            });
+        }
+    }
+
+    function renderTable() {
+        const data = currentState;
+        if (!data) return;
+
+        const criterios = (data.criterios || [])
+            .filter((cr) => numberFrom(cr.ponderacion) > 0)
+            .sort((a, b) => criterionOrder(a.codigo) - criterionOrder(b.codigo));
+        const filtroAlumno = alumnoSelect.value;
+        const allAlumnos = (data.alumnos || []).filter(a => !filtroAlumno || a.nombre === filtroAlumno);
+        const totalPages = Math.max(1, Math.ceil(allAlumnos.length / perPage));
+        if (currentPage >= totalPages) currentPage = totalPages - 1;
+        const alumnos = allAlumnos.slice(currentPage * perPage, currentPage * perPage + perPage);
+
+        // Actualizar paginación
+        pageInfoEl.textContent = `Página ${currentPage + 1} de ${totalPages} (${allAlumnos.length} alumnos)`;
+        btnPrev.disabled = currentPage === 0;
+        btnNext.disabled = currentPage >= totalPages - 1;
+
+        if (!allAlumnos.length) {
+            notasHead.innerHTML = "";
+            refreshStickyHeaderOffset();
+            notasBody.innerHTML = `<tr><td colspan="99" class="empty-msg">Sin alumnos en esta unidad.</td></tr>`;
+            updateStatusBar(allAlumnos.length);
+            return;
+        }
+
+        if (!criterios.length) {
+            notasHead.innerHTML = `<tr><th class="th-nombre">Alumno</th></tr>`;
+            refreshStickyHeaderOffset();
+            notasBody.innerHTML = `<tr><td class="empty-msg">No hay CE/CR incluidos en esta unidad.</td></tr>`;
+            updateStatusBar(allAlumnos.length);
+            return;
+        }
+
+        // Calcular grupos CE: [{ce, count, firstIdx}]
+        const ceGroups = getCurrentCeGroups();
+        ensureCollapsedCePrefs(ceGroups);
+        ceGroups.forEach((g) => { g.collapsed = collapsedCeSet.has(String(g.ce)); });
+        const openCount = ceGroups.filter((g) => !g.collapsed).length;
+        if (ceToggleAllButton) ceToggleAllButton.textContent = openCount ? "Plegar CE" : "Abrir CE";
+        // Paleta de colores por CE (cicla si hay más de 6)
+        const CE_COLORS = [
+            { bg: "#eef2ff", fg: "var(--color-accent-strong)", border: "#818cf8" },
+            { bg: "#fdf4ff", fg: "#7e22ce", border: "#c084fc" },
+            { bg: "#fff7ed", fg: "#9a3412", border: "#fb923c" },
+            { bg: "#f0fdf4", fg: "#166534", border: "#4ade80" },
+            { bg: "#fff1f2", fg: "#9f1239", border: "#fb7185" },
+            { bg: "#f0f9ff", fg: "#075985", border: "#38bdf8" },
+        ];
+        const ceColorMap = {};
+        ceGroups.forEach((g, i) => { ceColorMap[g.ce] = CE_COLORS[i % CE_COLORS.length]; });
+
+        // Fila 1: grupos CE con colspan (Nota CE + nota/Rec por cada CR, si está desplegado)
+        let headRow1 = `<tr><th class="th-nombre" rowspan="2">Alumno</th><th class="th-final" rowspan="2">Nota<br>Final</th>`;
+        ceGroups.forEach(g => {
+            const c = ceColorMap[g.ce];
+            const colspan = g.collapsed ? 1 : g.count * 2 + 1;
+            const icon = g.collapsed ? "+" : "-";
+            headRow1 += `<th colspan="${colspan}" class="th-ce" style="background:${c.bg};color:${c.fg};border-left:3px solid ${c.border};border-bottom:1px solid ${c.border}"><button class="ce-toggle" type="button" data-ce-key="${escapeHtml(String(g.ce))}">CE${g.ce} ${icon}</button></th>`;
+        });
+        headRow1 += `</tr>`;
+
+        // Fila 2: por grupo, Nota CE + columnas CR + Rec (si está desplegado)
+        let headRow2 = `<tr>`;
+        ceGroups.forEach(g => {
+            const c = ceColorMap[g.ce];
+            const groupCriterios = criterios.slice(g.firstIdx, g.firstIdx + g.count);
+            headRow2 += `<th class="th-ce-nota" style="width:64px;background:${c.bg};color:${c.fg};border-left:3px solid ${c.border};">Nota CE</th>`;
+            if (!g.collapsed) {
+                groupCriterios.forEach((cr) => {
+                    const pond = numberFrom(cr.ponderacion);
+                    const tieneP = pond > 0;
+                    const pctTxt = tieneP
+                        ? `<div style="font-size:0.85em;color:var(--color-accent);font-weight:600;margin-top:2px">${Math.round(pond)}%</div>`
+                        : `<div style="font-size:0.82em;color:#9ca3af;margin-top:2px">—</div>`;
+                    const bgStyle = tieneP ? "" : "background:#f3f4f6;color:#9ca3af;";
+                    headRow2 += `<th data-col-key="${escapeHtml(cr.codigo)}" style="width:80px;font-size:0.72em;padding:6px 4px;${bgStyle}">${escapeHtml(cr.codigo)}${pctTxt}</th>`;
+                    headRow2 += `<th data-col-key="${escapeHtml(cr.codigo)}-rec" style="width:56px;font-size:0.72em;padding:6px 4px;${bgStyle}">Rec</th>`;
+                });
+            }
+        });
+        headRow2 += `</tr>`;
+        notasHead.innerHTML = headRow1 + headRow2;
+        refreshStickyHeaderOffset();
+
+        // Filas de la página actual
+        let bodyHtml = "";
+        alumnos.forEach(alumno => {
+            const { ceNotas, final } = computeAlumnoNotas(alumno, criterios);
+            bodyHtml += `<tr><td class="td-nombre">${escapeHtml(alumno.nombre)}</td>`;
+            bodyHtml += `<td class="td-final"><span class="grade ${gradeClass(formatNote(final))}">${formatNote(final) || "—"}</span></td>`;
+            ceGroups.forEach(g => {
+                const c = ceColorMap[g.ce];
+                const groupCriterios = criterios.slice(g.firstIdx, g.firstIdx + g.count);
+                const ceDisp = formatNote(ceNotas[g.ce]);
+                bodyHtml += `<td style="background:${c.bg};border-left:3px solid ${c.border};"><span class="grade ${gradeClass(ceDisp)}">${ceDisp || "—"}</span></td>`;
+                if (!g.collapsed) {
+                    groupCriterios.forEach((cr) => {
+                        const tieneP = numberFrom(cr.ponderacion) > 0;
+                        const crNota = (alumno.crNotas || []).find(n => n.codigo === cr.codigo);
+                        const display = crNota ? crNota.display : "";
+                        const recDisplay = crNota ? crNota.recDisplay : "";
+                        const cls = gradeClass(display);
+                        const val = (display && display !== "") ? escapeHtml(display) : "—";
+                        if (tieneP) {
+                            bodyHtml += `<td data-col-key="${escapeHtml(cr.codigo)}"><span class="grade ${cls}">${val}</span></td>`;
+                        } else {
+                            bodyHtml += `<td data-col-key="${escapeHtml(cr.codigo)}" style="background:#f9fafb;"><span class="grade grade-empty">—</span></td>`;
+                        }
+                        if (recDisplay) {
+                            bodyHtml += `<td data-col-key="${escapeHtml(cr.codigo)}-rec"><span class="grade ${gradeClass(recDisplay)}">${escapeHtml(recDisplay)}</span></td>`;
+                        } else {
+                            bodyHtml += `<td data-col-key="${escapeHtml(cr.codigo)}-rec"></td>`;
+                        }
+                    });
+                }
+            });
+            bodyHtml += `</tr>`;
+        });
+        notasBody.innerHTML = bodyHtml;
+        updateStatusBar(allAlumnos.length);
+    }
+
+    function changePage(delta) {
+        currentPage += delta;
+        renderTable();
+    }
+
+    function changePerPage() {
+        perPage = parseInt(perPageSelect.value, 10);
+        currentPage = 0;
+        renderTable();
+    }
+
+    async function loadUnidad(unidad) {
+        showMessage("Cargando notas...", "info");
+        try {
+            const data = await window.electronExcel.getNotasUnidad({ unidad });
+            if (!data) { showMessage("No se encontro el Excel. Selecciona el archivo desde el inicio.", "error"); return; }
+            currentState = data;
+            currentPage = 0;
+
+            // Título desde A3 de la hoja
+            unidadTituloEl.textContent = data.titulo || "";
+            if (lastSyncEl) {
+                const fileLabel = data.fileName ? ` · ${data.fileName}` : "";
+                lastSyncEl.textContent = `Sincronizado ${new Date().toLocaleTimeString()}${fileLabel}`;
+            }
+
+            // Poblar selector de unidades si aun no tiene opciones
+            if (unidadSelect.options.length <= 1 && data.unidades && data.unidades.length) {
+                unidadSelect.innerHTML = data.unidades.map(u =>
+                    `<option value="${escapeHtml(u.codigo)}">${escapeHtml(u.label || u.codigo)}</option>`
+                ).join("");
+                unidadSelect.value = unidad;
+            }
+
+            // Poblar selector de alumnos
+            const nombres = (data.alumnos || []).map(a => a.nombre);
+            alumnoSelect.innerHTML = `<option value="">— Todos —</option>` +
+                nombres.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+
+            renderTable();
+            updateStatusBar((data.alumnos || []).length);
+            showMessage("Unidad cargada.", "success");
+        } catch (e) {
+            showMessage(e.message || "Error al cargar notas.", "error");
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+        applyDensityPreference();
+        if (!window.electronExcel) {
+            showMessage("Abre esta pantalla desde la aplicacion local.", "error");
+            return;
+        }
+        unidadSelect.addEventListener("change", () => { currentPage = 0; loadUnidad(unidadSelect.value); });
+        alumnoSelect.addEventListener("change", () => { currentPage = 0; renderTable(); });
+        btnRefresh?.addEventListener("click", () => loadUnidad(unidadSelect.value || "U1"));
+        densityToggleButton?.addEventListener("click", toggleDensityMode);
+        ceToggleAllButton?.addEventListener("click", toggleAllCeGroups);
+        window.addEventListener("resize", refreshStickyHeaderOffset);
+        notasHead.addEventListener("click", (event) => {
+            const button = event.target.closest(".ce-toggle");
+            if (button) toggleCeGroup(button.dataset.ceKey);
+        });
+        notasBody.addEventListener("click", (event) => {
+            const cell = event.target.closest("td");
+            if (cell) highlightActiveCell(cell);
+        });
+        loadUnidad("U1");
+    });
+</script>
+</body>
+</html>

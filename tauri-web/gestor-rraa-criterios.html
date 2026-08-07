@@ -1,0 +1,3070 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de RRAA y Criterios - Excel</title>
+    <script src="app-bridge.js"></script>
+    <link rel="stylesheet" href="ux-common.css">
+    <script src="ux-common.js" defer></script>
+    <!-- XLSX - Librería principal -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js" integrity="sha512-UQnhkjV2gIt8VYN8GjJ3xAVDQ7KZ4dKxPm0zw4yNdaWCSxbV9LJfMTXvx9qgHKmCHQCoKkJaAxCp4A9O3cZUg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- XLSX - Librería alternativa -->
+    <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--color-paper);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.25);
+            overflow: hidden;
+        }
+
+        .header {
+            background: var(--color-accent-strong);
+            color: white;
+            padding: 28px 30px;
+            text-align: left;
+        }
+
+        .header h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.05em;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 35px;
+        }
+
+        .section h2 {
+            color: var(--color-accent);
+            font-size: 1.4em;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--color-accent);
+        }
+
+        .section h3 {
+            color: var(--color-accent-strong);
+            font-size: 1.1em;
+            margin: 20px 0 15px 0;
+        }
+
+        /* ÁREA DE CARGA */
+        .upload-area {
+            border: 3px dashed var(--color-accent);
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: var(--color-accent-strong);
+            background: #f0f2ff;
+        }
+
+        .upload-area.dragging {
+            border-color: var(--color-accent-strong);
+            background: #e8ecff;
+            transform: scale(1.02);
+        }
+
+        .upload-area input[type="file"] {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        .upload-text {
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            font-size: 0.9em;
+            color: #999;
+        }
+
+        /* MENSAJES */
+        .message {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        /* TABLA */
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            table-layout: fixed;
+        }
+
+        table th {
+            background: var(--color-accent);
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        table td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        table tr:hover {
+            background: #f8f9ff;
+        }
+
+        table tr:last-child td {
+            border-bottom: none;
+        }
+
+        table input[type="text"],
+        table input[type="number"],
+        table textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.95em;
+            font-family: inherit;
+        }
+
+        table textarea {
+            min-height: 60px;
+            resize: vertical;
+        }
+
+        .col-numero {
+            width: 52px;
+        }
+
+        .col-ra {
+            width: 100px;
+        }
+
+        .col-codigo {
+            width: 74px;
+        }
+
+        .col-ponderacion {
+            width: 120px;
+        }
+
+        .col-accion {
+            width: 86px;
+        }
+
+        .codigo-input {
+            width: 76px !important;
+            min-width: 76px !important;
+            max-width: 76px !important;
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+
+        .ponderacion-matrix-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 0 0 12px 0;
+        }
+
+        .ponderacion-matrix-summary {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .matrix-chip {
+            display: inline-flex;
+            align-items: center;
+            min-height: 30px;
+            padding: 5px 10px;
+            border: 1px solid #c7d2fe;
+            border-radius: 999px;
+            background: #f8f9ff;
+            color: var(--color-accent-strong);
+            font-size: 0.82em;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .matrix-chip.muted {
+            border-color: #e5e7eb;
+            background: #f9fafb;
+            color: #4b5563;
+        }
+
+        .ponderaciones-matrix-wrap {
+            max-height: calc(100vh - 250px);
+            overflow: auto;
+            margin-top: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: white;
+        }
+
+        #ponderacionesTable.ponderaciones-matrix,
+        #resumenTable.ponderaciones-matrix {
+            width: max-content;
+            border-collapse: separate;
+            border-spacing: 0;
+            table-layout: fixed;
+        }
+
+        .ponderaciones-matrix col.matrix-col-unit {
+            width: 260px;
+        }
+
+        .ponderaciones-matrix col.matrix-col-inst {
+            width: 72px;
+        }
+
+        .ponderaciones-matrix col.matrix-col-cr {
+            width: 40px;
+        }
+
+        .ponderaciones-matrix th,
+        .ponderaciones-matrix td {
+            height: 32px;
+            padding: 3px 1px;
+            border-right: 1px solid #e5e7eb;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .ponderaciones-matrix thead th {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background: #eef2ff;
+            color: #1f2937;
+            font-size: 0.82em;
+            font-weight: 900;
+        }
+
+        .ponderaciones-matrix thead tr:nth-child(2) th {
+            top: 42px;
+            z-index: 4;
+        }
+
+        .ponderaciones-matrix .matrix-ce-header {
+            background: var(--ce-bg, #eef2ff);
+            border-top: 4px solid var(--ce-color, var(--color-accent));
+            border-left: 4px solid var(--ce-color, var(--color-accent));
+            border-right: 4px solid var(--ce-color, var(--color-accent));
+            color: #111827;
+        }
+
+        .ponderaciones-matrix .matrix-cr-header,
+        .ponderaciones-matrix .matrix-inst-header {
+            background: var(--ce-soft-bg, #f8f9ff);
+            border-top: 2px solid var(--ce-color, var(--color-accent));
+            color: #374151;
+            line-height: 1.25;
+        }
+
+        .ponderaciones-matrix .matrix-cr-code {
+            display: block;
+            white-space: nowrap;
+            font-size: 0.7em;
+        }
+
+        .ponderaciones-matrix .matrix-ce-start {
+            border-left: 4px solid var(--ce-color, var(--color-accent)) !important;
+        }
+
+        .ponderaciones-matrix .matrix-ce-end {
+            border-right: 4px solid var(--ce-color, var(--color-accent)) !important;
+        }
+
+        .ponderaciones-matrix tbody td.matrix-ce-cell {
+            background-color: var(--ce-soft-bg, #f8f9ff);
+        }
+
+        .ponderaciones-matrix tfoot td.matrix-ce-cell {
+            background-color: var(--ce-bg, #eef2ff);
+        }
+
+        .ponderaciones-matrix .matrix-criteria-pct {
+            display: block;
+            margin-top: 2px;
+            color: #64748b;
+            font-size: 0.74em;
+            font-weight: 800;
+        }
+
+        .ponderaciones-matrix .matrix-unit-sticky {
+            position: sticky;
+            left: 0;
+            z-index: 6;
+            text-align: left;
+            background: #f8fafc;
+            color: #111827;
+            box-shadow: 1px 0 0 #cbd5e1;
+        }
+
+        .ponderaciones-matrix thead .matrix-unit-sticky {
+            z-index: 8;
+            background: #e0e7ff;
+            color: #1e1b4b;
+        }
+
+        .ponderaciones-matrix tbody .matrix-unit-sticky {
+            font-weight: 800;
+        }
+
+        .ponderaciones-matrix tbody tr:nth-child(even) td:not(.matrix-ce-cell) {
+            background-color: #fbfdff;
+        }
+
+        .ponderaciones-matrix tbody tr:nth-child(even) .matrix-unit-sticky {
+            background-color: #f1f5f9;
+        }
+
+        .ponderaciones-matrix tbody tr.matrix-row-active td {
+            background-color: #fff7ed;
+        }
+
+        .ponderaciones-matrix tbody tr.matrix-row-active .matrix-unit-sticky {
+            background-color: #ffedd5;
+        }
+
+        .matrix-unit-cell-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .matrix-unit-title {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: normal;
+        }
+
+        .matrix-unit-total {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 56px;
+            padding: 3px 7px;
+            border: 1px solid #bfdbfe;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: 0.78em;
+            font-weight: 900;
+            line-height: 1.2;
+        }
+
+        .matrix-unit-total.zero {
+            border-color: #e5e7eb;
+            background: #f8fafc;
+            color: #64748b;
+        }
+
+        .matrix-unit-total.warn {
+            border-color: #fca5a5;
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .ponderaciones-matrix td.matrix-col-active,
+        .ponderaciones-matrix th.matrix-col-active {
+            box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.22);
+        }
+
+        .ponderaciones-matrix input[type="number"],
+        .ponderaciones-matrix select {
+            width: 100%;
+            min-width: 0;
+            height: 26px;
+            padding: 2px 0;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            background: white;
+            font-size: 0.8em;
+            font-family: inherit;
+            text-align: center;
+        }
+
+        .ponderaciones-matrix input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        .ponderaciones-matrix input[type="number"]::-webkit-outer-spin-button,
+        .ponderaciones-matrix input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .ponderaciones-matrix select {
+            padding-left: 4px;
+            padding-right: 2px;
+            color: #334155;
+            font-weight: 700;
+        }
+
+        .ponderaciones-matrix input[type="number"]:focus,
+        .ponderaciones-matrix select:focus {
+            border-color: var(--color-accent);
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.16);
+        }
+
+        .ponderaciones-matrix input[type="number"].dirty-pond {
+            background: #fff7ed;
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.15);
+        }
+
+        .ponderaciones-matrix input[type="number"].saved-pond {
+            background: #ecfdf5;
+            border-color: #22c55e;
+            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.14);
+        }
+
+        .ponderaciones-matrix input[type="number"].invalid-pond {
+            background: #fff1f2;
+            border-color: #dc2626;
+            box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.16);
+        }
+
+        .ponderaciones-matrix tfoot td {
+            background: #f3f4f6;
+            color: #374151;
+            font-size: 0.8em;
+            font-weight: 900;
+        }
+
+        .ponderaciones-matrix tfoot .matrix-unit-sticky {
+            background: #e5e7eb;
+        }
+
+        .ponderaciones-matrix .matrix-ce-total {
+            background: var(--ce-bg, #eef2ff);
+            border-top: 2px solid var(--ce-color, var(--color-accent));
+            color: #111827;
+        }
+
+        table input:focus,
+        table textarea:focus {
+            outline: none;
+            border-color: var(--color-accent);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+        }
+
+        .row-numero {
+            font-weight: 600;
+            color: var(--color-accent);
+            width: 50px;
+            text-align: center;
+        }
+
+        /* FORMULARIO DE NUEVO ELEMENTO */
+        .form-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1em;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            min-width: 250px;
+        }
+
+        input[type="number"] {
+            width: 120px;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1em;
+            font-family: inherit;
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--color-accent);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        button {
+            padding: 12px 25px;
+            background: var(--color-accent);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(99, 102, 241, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        button.secondary {
+            background: #f0f0f0;
+            color: var(--color-accent);
+            border: 2px solid var(--color-accent);
+        }
+
+        button.secondary:hover {
+            background: #f8f9ff;
+        }
+
+        button.delete {
+            background: #ff6b6b;
+            padding: 6px 12px;
+            font-size: 0.85em;
+            width: 100%;
+        }
+
+        button.delete:hover {
+            background: #ff5252;
+        }
+
+        /* ACCIONES */
+        .actions {
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .actions-left {
+            display: flex;
+            gap: 10px;
+        }
+
+        .actions-right {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* ESTADÍSTICAS */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: var(--color-accent);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .number {
+            font-size: 2.2em;
+            font-weight: bold;
+        }
+
+        /* LOADING */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: var(--color-accent);
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--color-accent);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* TABS */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .tab-btn {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: var(--color-accent);
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            color: var(--color-accent-strong);
+        }
+
+        .tab-btn.active {
+            border-bottom-color: var(--color-accent);
+            color: var(--color-accent);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .save-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9em;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+
+        .save-status.saving {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .save-status.saved {
+            background: #28a745;
+            color: white;
+        }
+
+        .save-status.error {
+            background: #dc3545;
+            color: white;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* RESPONSIVO */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .form-group {
+                flex-direction: column;
+            }
+
+            input[type="text"] {
+                min-width: unset;
+            }
+
+            .actions {
+                flex-direction: column;
+            }
+
+            .actions-left,
+            .actions-right {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            button {
+                width: 100%;
+            }
+
+            table {
+                font-size: 0.9em;
+            }
+
+            table td, table th {
+                padding: 8px 10px;
+            }
+
+            .tabs {
+                flex-wrap: wrap;
+            }
+
+            .tab-btn {
+                padding: 10px 15px;
+                font-size: 0.9em;
+            }
+        }
+
+        .page-nav {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            background: #f8f9ff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .nav-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .nav-button,
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 38px;
+            width: auto;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 0.92em;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .nav-button {
+            background: white;
+            color: var(--color-accent);
+            border: 2px solid var(--color-accent);
+        }
+
+        .nav-button:hover {
+            background: #f0f2ff;
+            transform: translateY(-1px);
+        }
+
+        .nav-link {
+            background: var(--color-accent);
+            color: white;
+            border: 2px solid var(--color-accent);
+        }
+
+        .nav-link:hover {
+            background: var(--color-accent);
+            transform: translateY(-1px);
+        }
+
+        @media (max-width: 768px) {
+            .page-nav {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .nav-group {
+                width: 100%;
+            }
+
+            .page-nav .nav-button,
+            .page-nav .nav-link {
+                flex: 1;
+                width: auto;
+            }
+        }
+
+        .count-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 28px;
+            padding: 2px 9px;
+            background: var(--color-accent);
+            color: white;
+            border-radius: 999px;
+            font-size: 0.6em;
+            font-weight: 800;
+            vertical-align: middle;
+            margin-left: 8px;
+            line-height: 1.6;
+        }
+
+        .stats.compact-stats {
+            display: flex;
+            justify-content: flex-start;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .stats.compact-stats .stat-card {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            width: auto;
+            min-width: 180px;
+            padding: 10px 14px;
+            text-align: left;
+        }
+
+        .stats.compact-stats .stat-card h3 {
+            margin: 0;
+            font-size: 0.82em;
+        }
+
+        .stats.compact-stats .stat-card .number {
+            margin-left: auto;
+            font-size: 1.55em;
+            line-height: 1;
+        }
+
+        .btn-guardar-flotante {
+            position: fixed;
+            bottom: 28px;
+            right: 28px;
+            z-index: 200;
+            display: none;
+            padding: 12px 22px;
+            background: var(--color-accent);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font: inherit;
+            font-size: 0.97rem;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 4px 18px rgba(99,102,241,0.45);
+            transition: background 0.15s, box-shadow 0.15s;
+        }
+
+        .btn-guardar-flotante:hover { background: var(--color-accent); box-shadow: 0 6px 22px rgba(99,102,241,0.55); }
+        .btn-guardar-flotante.visible { display: block; }
+    </style>
+</head>
+<body class="ux-app-shell ux-page-gestor-rraa-criterios">
+    <div id="saveStatus" class="save-status" style="display: none;"></div>
+
+    <div class="container ux-shell">
+        <nav class="page-nav ux-page-nav" aria-label="Navegación">
+            <div class="nav-group ux-nav-group">
+                <button class="nav-button ux-button" type="button" onclick="window.history.back()">← Atrás</button>
+                <a class="nav-link ux-link-button primary" href="index.html">⌂ Inicio</a>
+            </div>
+        </nav>
+
+        <div class="header ux-page-header">
+            <h1>📚 Gestor de CE y Criterios</h1>
+            <p>Competencias Específicas y Criterios de Evaluación</p>
+        </div>
+
+        <div class="content ux-content">
+            <!-- MENSAJES -->
+            <div id="message" class="message"></div>
+
+            <!-- SECCIÓN 1: CARGA DE ARCHIVO -->
+            <div class="section">
+                <h2>1️⃣ Cargar Archivo Excel</h2>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text"><strong>Arrastra tu archivo aquí</strong></div>
+                    <div class="upload-hint">o haz clic para seleccionar</div>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls" />
+                </div>
+            </div>
+
+            <!-- SECCIÓN 2: GESTIÓN DE RRAA Y CRITERIOS (inicialmente oculta) -->
+            <div id="mainContent" style="display: none;">
+                <!-- TABS -->
+                <div class="tabs ux-tabs">
+                    <button class="tab-btn active ux-tab" onclick="cambiarTab('rraa')">🎯 Comp. Específicas</button>
+                    <button class="tab-btn ux-tab" onclick="cambiarTab('criterios')">✓ Criterios</button>
+                    <button class="tab-btn ux-tab" onclick="cambiarTab('ponderaciones')">⚖ Ponderación por unidad</button>
+                    <button class="tab-btn ux-tab" onclick="cambiarTab('resumen')">📊 Resumen por CE</button>
+                </div>
+
+                <!-- TAB: RRAA -->
+                <div id="tab-rraa" class="tab-content active">
+                    <div class="section">
+                        <h2>2️⃣ Competencias Específicas (CE) <span class="count-badge" id="totalRRAA">0</span></h2>
+
+                        <!-- TABLA CE -->
+                        <h3>Competencias Específicas Actuales</h3>
+                        <div class="table-container ux-table-wrap">
+                            <table id="rraaTable" class="ux-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 50px;">Nº</th>
+                                        <th>Competencia Específica</th>
+                                        <th style="width: 80px;">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rraaTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="emptyStateRRAA" class="empty-state" style="display: none;">
+                            <div class="empty-state-icon">📭</div>
+                            <p>No hay CE registradas</p>
+                        </div>
+
+                        <!-- AGREGAR NUEVA CE -->
+                        <h3>Agregar Nueva CE</h3>
+                        <div class="form-group">
+                            <textarea id="nuevoRRAA" placeholder="Descripción de la Competencia Específica"></textarea>
+                        </div>
+                        <button onclick="agregarRRAA()" style="width: 100%;">➕ Agregar CE</button>
+                    </div>
+                </div>
+
+                <!-- TAB: CRITERIOS -->
+                <div id="tab-criterios" class="tab-content">
+                    <div class="section">
+                        <h2>2️⃣ Criterios de Evaluación</h2>
+                        <div class="stats compact-stats ux-summary">
+                            <div class="stat-card ux-stat">
+                                <h3>Total Criterios</h3>
+                                <div class="number" id="totalCriterios">0</div>
+                            </div>
+                        </div>
+
+                        <!-- TABLA CRITERIOS -->
+                        <h3>Criterios Actuales <span class="count-badge" id="criteriosVisiblesBadge">0</span></h3>
+                        <div class="form-group" style="align-items:center; margin-bottom:15px;">
+                            <button class="secondary" type="button" onclick="alternarMenuRA()" style="width:auto;">☰ CE</button>
+                            <select id="criterioRaFiltro" onchange="seleccionarRAFiltro(this.value)" style="flex:1; padding:9px 12px; border:2px solid #c7d2fe; border-radius:8px; font-size:0.95em; color:#1e1b4b; background:#f8f9ff; cursor:pointer;"></select>
+                            <input type="search" id="criterioSearchInput" placeholder="Buscar criterio por código o texto" autocomplete="off" style="flex:1;" />
+                            <button class="secondary" type="button" id="clearCriterioSearchButton" style="width:auto;">Limpiar</button>
+                        </div>
+                        <p class="ux-field-help">Selecciona una CE para filtrar sus criterios. Usa el buscador para localizar un criterio por código o texto.</p>
+                        <div class="table-container ux-table-wrap">
+                            <table id="criteriosTable" class="ux-table">
+                                <thead>
+                                    <tr>
+                                        <th class="col-numero">Nº</th>
+                                        <th class="col-codigo">Código</th>
+                                        <th>Criterio de Evaluación</th>
+                                        <th class="col-accion">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="criteriosTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="emptyStateCriterios" class="empty-state" style="display: none;">
+                            <div class="empty-state-icon">📭</div>
+                            <p>No hay criterios registrados</p>
+                        </div>
+
+                        <!-- AGREGAR NUEVO CRITERIO -->
+                        <h3>Agregar Nuevo Criterio</h3>
+                        <div class="form-group">
+                            <select id="nuevoCriterioRA" style="min-width: 120px;"></select>
+                            <input class="codigo-input" type="text" id="nuevoCriterio" placeholder="CR1.1" maxlength="8" />
+                            <textarea id="nuevoCriterioTexto" placeholder="Texto del criterio de evaluación" style="flex: 1;"></textarea>
+                            <input type="hidden" id="nuevoPonderacion" value="0" />
+                            <input type="hidden" id="nuevoPonderacionInstituto" value="0" />
+                            <input type="hidden" id="nuevoPonderacionEmpresa" value="0" />
+                            <button onclick="agregarCriterio()">➕ Agregar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-ponderaciones" class="tab-content">
+                    <div class="section">
+                        <h2>3️⃣ Ponderación de CCEE por Unidad</h2>
+                        <div style="display:none; gap:14px; margin-bottom:18px; align-items:flex-end;">
+                            <div style="flex:1;">
+                                <label style="display:block; font-size:0.78em; font-weight:700; color:var(--color-accent); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:5px;">📚 Unidad didáctica</label>
+                                <select id="unidadPonderacionSelect" onchange="seleccionarUnidadPonderacion(this.value)" style="width:100%; padding:9px 12px; border:2px solid #c7d2fe; border-radius:8px; font-size:0.95em; color:#1e1b4b; background:#f8f9ff; cursor:pointer;"></select>
+                            </div>
+                            <div style="flex:1;">
+                                <label style="display:block; font-size:0.78em; font-weight:700; color:var(--color-accent); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:5px;">⚖️ Competencia Específica</label>
+                                <select id="ponderacionRaFiltro" onchange="seleccionarRAPonderacion(this.value)" style="width:100%; padding:9px 12px; border:2px solid #c7d2fe; border-radius:8px; font-size:0.95em; color:#1e1b4b; background:#f8f9ff; cursor:pointer;"></select>
+                            </div>
+                        </div>
+
+
+                        <div class="ponderacion-matrix-toolbar">
+                            <div class="ponderacion-matrix-summary" id="ponderacionesMatrixSummary"></div>
+                        </div>
+
+                        <div class="ponderaciones-matrix-wrap ux-table-wrap">
+                            <table id="ponderacionesTable" class="ux-table ponderaciones-matrix">
+                                <colgroup id="ponderacionesTableCols"></colgroup>
+                                <thead id="ponderacionesTableHead">
+                                    <tr>
+                                        <th class="col-ra">CE</th>
+                                        <th class="col-codigo">Código</th>
+                                        <th>Criterio de Evaluación</th>
+                                        <th class="col-ponderacion">Ponderación</th>
+                                        <th style="width: 60px;">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ponderacionesTableBody"></tbody>
+                                <tfoot id="ponderacionesTableFoot"></tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: RESUMEN POR CE -->
+                <div id="tab-resumen" class="tab-content">
+                    <div class="section">
+                        <h2>📊 Resumen por CE</h2>
+                        <div class="ponderaciones-matrix-wrap">
+                            <table id="resumenTable" class="ux-table ponderaciones-matrix">
+                                <colgroup id="resumenTableCols"></colgroup>
+                                <thead id="resumenTableHead"></thead>
+                                <tbody id="resumenTableBody"></tbody>
+                                <tfoot id="resumenTableFoot"></tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN 3: ACCIONES FINALES -->
+                <div class="section" style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #e0e0e0;">
+                    <div class="actions">
+                        <div class="actions-left">
+                            <button class="secondary" onclick="cargarNuevo()">🔄 Cargar Otro Archivo</button>
+                            <button class="secondary" onclick="mostrarOpcionesImportacion()">📂 Importar CE, Criterios, Unidades</button>
+                            <button class="secondary" type="button" onclick="refrescarDesdeExcel()" style="width:auto;">↻ Actualizar desde Excel</button>
+                            <button onclick="guardarCambiosForzado()" style="background: #17a2b8; color: white;">💾 Guardar Cambios Ahora</button>
+                        </div>
+                        <div class="actions-right">
+                            <button onclick="descargarExcel()">📥 Descargar Excel Actualizado</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botón guardar flotante (visible cuando hay cambios sin guardar) -->
+                <button class="btn-guardar-flotante" id="btnGuardarFlotante" onclick="guardarCambiosForzado()">💾 Guardar</button>
+            </div>
+
+            <!-- LOADING -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Procesando archivo...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== VARIABLES GLOBALES =====
+        let workbook = null;
+        let archivoOriginal = null;
+        let xlsxReady = false;
+        let raaaActuales = [];
+        let criteriosActuales = [];
+        let ponderacionesUnidad = [];
+        let instrumentosDisponibles = [];
+        let criterioRaActivo = null;
+        let ponderacionUnidadActiva = null;
+        let ponderacionRaActiva = null;
+        const isElectronMode = Boolean(window.electronExcel);
+        let autoSaveTimeout = null;
+        let hayChangesSinGuardar = false;
+        const AUTO_SAVE_DELAY_MS = 60000;
+        const _BASE_TITLE = document.title;
+        let archivoModificadoUnix = 0;
+        let comprobandoActualizacion = false;
+        let criterioBusqueda = '';
+        const VIEW_PREFS_KEY = 'gestorRraaCriteriosViewPrefs';
+
+        // ===== VERIFICACIÓN DE LIBRERÍA XLSX =====
+        function checkXLSX() {
+            if (isElectronMode) {
+                xlsxReady = true;
+                return true;
+            }
+
+            if (typeof XLSX === 'undefined') {
+                return false;
+            }
+            xlsxReady = true;
+            return true;
+        }
+
+        // Verificar que XLSX esté disponible
+        setTimeout(() => {
+            if (!checkXLSX()) {
+                setTimeout(checkXLSX, 500);
+            }
+        }, 100);
+
+        // ===== DRAG & DROP =====
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('click', () => {
+            if (isElectronMode) {
+                seleccionarArchivoLocal();
+                return;
+            }
+
+            if (!xlsxReady) {
+                mostrarMensaje('⚠️ Cargando librerías...', 'info');
+                return;
+            }
+            fileInput.click();
+        });
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragging');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragging');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragging');
+            if (isElectronMode) {
+                mostrarMensaje('Usa el selector de archivo para conectar el Excel local.', 'info');
+                return;
+            }
+            if (!xlsxReady) {
+                mostrarMensaje('⚠️ Cargando librerías...', 'info');
+                return;
+            }
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                // Si ya hay datos cargados, es una importación; si no, es una carga inicial
+                if (document.getElementById('mainContent').style.display === 'block') {
+                    importarDesdeArchivo(files[0]);
+                } else {
+                    cargarArchivo(files[0]);
+                }
+            }
+        });
+
+        async function seleccionarArchivoLocal(options = {}) {
+            try {
+                if (!options.silent) mostrarLoading(true);
+                const result = await window.electronExcel.getRraaCriterios();
+
+                if (!result) {
+                    mostrarMensaje(options.auto ? 'Selecciona un Excel local para cargar CE y criterios.' : 'No se encontró un Excel activo.', options.auto ? 'info' : 'error');
+                    mostrarLoading(false);
+                    return;
+                }
+
+                archivoOriginal = { name: result.fileName, path: result.filePath };
+                workbook = null;
+                raaaActuales = result.rraa;
+                criteriosActuales = result.criterios;
+                ponderacionesUnidad = result.ponderacionesUnidad || [];
+                instrumentosDisponibles = result.instrumentos || [];
+                criterioRaActivo = criterioRaActivo || primerRAConCriterios();
+                ponderacionUnidadActiva = ponderacionUnidadActiva || primeraUnidadPonderacion();
+                ponderacionRaActiva = ponderacionRaActiva || primerRAConCriterios();
+                mostrarTablaRRAA();
+                mostrarTablaCriterios();
+                mostrarTablaPonderacionesUnidad();
+                actualizarSelectorInstrumento();
+                actualizarStatsRRAA();
+                actualizarStatsCriterios();
+                actualizarOpcionesRA();
+                actualizarOpcionesPonderacion();
+                await actualizarMarcaArchivo();
+                document.getElementById('uploadArea').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+                if (!options.silent) {
+                    const accion = options.refresh ? 'Datos actualizados desde Excel' : (options.auto ? 'Archivo activo cargado' : 'Archivo conectado');
+                    mostrarMensaje(`${accion}: ${result.fileName}`, 'success');
+                    mostrarLoading(false);
+                }
+            } catch (error) {
+                if (!options.silent) {
+                    mostrarMensaje('Error al abrir RRAA/CE: ' + error.message, 'error');
+                    mostrarLoading(false);
+                }
+            }
+        }
+
+        async function actualizarMarcaArchivo() {
+            if (!isElectronMode || !window.electronExcel.getFileStatus) return null;
+            try {
+                const status = await window.electronExcel.getFileStatus();
+                archivoModificadoUnix = Number(status && status.modifiedAtUnix) || archivoModificadoUnix || 0;
+                return status;
+            } catch { return null; }
+        }
+
+        async function refrescarDesdeExcel(options = {}) {
+            if (!isElectronMode) { mostrarMensaje('Para refrescar, vuelve a seleccionar el archivo.', 'info'); return; }
+            if (hayChangesSinGuardar) {
+                if (options.auto) return;
+                const ok = window.appUx && window.appUx.confirm
+                    ? await window.appUx.confirm('Hay cambios sin guardar. Si actualizas desde Excel se descartarán.', { title: 'Actualizar desde Excel', confirmText: 'Actualizar' })
+                    : confirm('Hay cambios sin guardar. ¿Actualizar de todos modos?');
+                if (!ok) return;
+                hayChangesSinGuardar = false;
+                document.getElementById('btnGuardarFlotante')?.classList.remove('visible');
+                if (autoSaveTimeout) { clearTimeout(autoSaveTimeout); autoSaveTimeout = null; }
+            }
+            await seleccionarArchivoLocal({ refresh: true, silent: Boolean(options.silent), auto: Boolean(options.auto) });
+        }
+
+        async function comprobarActualizacionExterna() {
+            if (!isElectronMode || !archivoOriginal || hayChangesSinGuardar || comprobandoActualizacion) return;
+            comprobandoActualizacion = true;
+            try {
+                const status = await window.electronExcel.getFileStatus();
+                const modified = Number(status && status.modifiedAtUnix) || 0;
+                if (archivoModificadoUnix && modified > archivoModificadoUnix) {
+                    mostrarMensaje('El Excel ha cambiado fuera de la pantalla. Actualizando datos...', 'info');
+                    await refrescarDesdeExcel({ auto: true, silent: true });
+                    mostrarMensaje('Datos actualizados desde Excel.', 'success');
+                } else if (!archivoModificadoUnix) {
+                    archivoModificadoUnix = modified;
+                }
+            } catch {} finally { comprobandoActualizacion = false; }
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0 && xlsxReady) {
+                // Si ya hay datos cargados, es una importación; si no, es una carga inicial
+                if (document.getElementById('mainContent').style.display === 'block') {
+                    importarDesdeArchivo(e.target.files[0]);
+                } else {
+                    cargarArchivo(e.target.files[0]);
+                }
+            }
+            // Limpiar el input para permitir seleccionar el mismo archivo otra vez
+            e.target.value = '';
+        });
+
+        // ===== CARGAR ARCHIVO =====
+        function cargarArchivo(file) {
+            if (!checkXLSX()) {
+                mostrarMensaje('❌ XLSX no está disponible. Recargando...', 'error');
+                setTimeout(() => location.reload(), 2000);
+                return;
+            }
+
+            archivoOriginal = file;
+            mostrarLoading(true);
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    workbook = XLSX.read(data, { type: 'array' });
+
+                    // Verificar que tenga las hojas necesarias
+                    if (!workbook.SheetNames.includes('DATOS') || !workbook.SheetNames.includes('PESOS')) {
+                        mostrarMensaje('❌ El archivo debe tener las hojas DATOS y PESOS', 'error');
+                        mostrarLoading(false);
+                        return;
+                    }
+
+                    cargarRRAA();
+                    cargarCriterios();
+                    cargarPonderacionesUnidad();
+                    mostrarMensaje('✅ Archivo cargado exitosamente', 'success');
+                    document.getElementById('uploadArea').style.display = 'none';
+                    document.getElementById('mainContent').style.display = 'block';
+                    mostrarLoading(false);
+
+                } catch (error) {
+                    mostrarMensaje('❌ Error: ' + error.message, 'error');
+                    mostrarLoading(false);
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        // ===== CARGAR RRAA DESDE HOJA DATOS =====
+        function cargarRRAA() {
+            const sheet = workbook.Sheets['DATOS'];
+            const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+            // Buscar la fila con encabezados (Nº, RRAA, Nº HOJA, etc.)
+            let headerRowIdx = -1;
+            let raaaStart = -1;
+
+            for (let i = 0; i < json.length; i++) {
+                const row = json[i];
+                if (row[1] && String(row[1]).toUpperCase().includes('RRAA')) {
+                    headerRowIdx = i;
+                    raaaStart = i + 1;
+                    break;
+                }
+            }
+
+            if (headerRowIdx === -1) {
+                mostrarMensaje('⚠️ No se encontró la sección de RRAA', 'error');
+                return;
+            }
+
+            // Extraer RRAA
+            const rraa = [];
+            for (let i = raaaStart; i < json.length; i++) {
+                const numero = json[i][0];
+                const descripcion = json[i][1];
+
+                if (!numero || !descripcion || String(descripcion).trim() === '') {
+                    break;
+                }
+
+                rraa.push({
+                    numero: numero,
+                    descripcion: descripcion
+                });
+            }
+
+            raaaActuales = rraa;
+            mostrarTablaRRAA();
+            actualizarStatsRRAA();
+            actualizarOpcionesRA();
+        }
+
+        // ===== CARGAR CRITERIOS DESDE HOJA PESOS =====
+        function cargarCriterios() {
+            const sheet = workbook.Sheets['PESOS'];
+            const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            const datosRows = XLSX.utils.sheet_to_json(workbook.Sheets['DATOS'], { header: 1 });
+            const textos = extraerTextosCriterios(datosRows);
+
+            const criterios = [];
+            const headerCriterios = json[3] || [];
+            const ponderaciones = json[21] || [];
+            const ultimoCrPorCe = new Map();
+
+            for (let colIdx = 0; colIdx < headerCriterios.length; colIdx++) {
+                const codigo = headerCriterios[colIdx];
+
+                if (esCodigoCriterio(codigo)) {
+                    const codigoCorregido = codigoCriterioEnSecuencia(codigo, ultimoCrPorCe);
+                    const raNumero = numeroRaDesdeCriterio(codigoCorregido);
+                    const rraa = raaaActuales.find(item => Number(item.numero) === raNumero);
+                    criterios.push({
+                        numero: criterios.length + 1,
+                        codigo: codigoCorregido,
+                        nombre: codigoCorregido,
+                        originalCodigo: String(codigo),
+                        raNumero,
+                        raDescripcion: rraa ? rraa.descripcion : '',
+                        ponderacion: ponderaciones[colIdx] || 0,
+                        ponderacionInstituto: ponderaciones[colIdx + 1] || 0,
+                        ponderacionEmpresa: ponderaciones[colIdx + 2] || 0,
+                        texto: textos[normalizarCodigoCriterio(codigoCorregido)] || textos[normalizarCodigoCriterio(codigo)] || '',
+                        colIdx,
+                        actualCol: colIdx
+                    });
+                }
+            }
+
+            criteriosActuales = criterios;
+            criterioRaActivo = criterioRaActivo || primerRAConCriterios();
+            mostrarTablaCriterios();
+            actualizarStatsCriterios();
+            actualizarOpcionesRA();
+        }
+
+        function cargarPonderacionesUnidad() {
+            const sheet = workbook.Sheets['PESOS'];
+            const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            const datosJson = workbook.Sheets['DATOS']
+                ? XLSX.utils.sheet_to_json(workbook.Sheets['DATOS'], { header: 1 })
+                : [];
+
+            ponderacionesUnidad = [];
+            for (let rowIdx = 4; rowIdx < 20; rowIdx++) {
+                const row = json[rowIdx] || [];
+                const datosRow = datosJson[rowIdx] || [];
+                const nombre = nombreUnidadPonderacion(row[0], datosRow[8], datosRow[9]);
+                const ponderaciones = {};
+                criteriosActuales.forEach((criterio) => {
+                    ponderaciones[criterio.colIdx] = {
+                        ponderacion: row[criterio.colIdx] || 0,
+                        ponderacionInstituto: row[criterio.colIdx + 1] || 0,
+                        ponderacionEmpresa: row[criterio.colIdx + 2] || 0
+                    };
+                });
+
+                ponderacionesUnidad.push({
+                    numero: rowIdx - 3,
+                    rowIdx,
+                    codigo: datosRow[8] ? String(datosRow[8]) : '',
+                    nombre,
+                    evaluacion: datosRow[10] ? String(datosRow[10]) : '',
+                    ponderaciones
+                });
+            }
+
+            ponderacionUnidadActiva = ponderacionUnidadActiva || primeraUnidadPonderacion();
+            ponderacionRaActiva = ponderacionRaActiva || primerRAConCriterios();
+            actualizarOpcionesPonderacion();
+            mostrarTablaPonderacionesUnidad();
+            actualizarSelectorInstrumento();
+        }
+
+        function nombreUnidadPonderacion(nombrePesos, codigoDatos, nombreDatos) {
+            const pesos = String(nombrePesos || '').trim();
+            if (pesos && pesos !== '0') return pesos;
+            const nombre = String(nombreDatos || '').trim();
+            if (nombre && nombre !== '0') return nombre;
+            const codigo = String(codigoDatos || '').trim();
+            return codigo && codigo !== '0' ? codigo : '';
+        }
+
+        // ===== MOSTRAR TABLA RRAA =====
+        function mostrarTablaRRAA() {
+            const tbody = document.getElementById('rraaTableBody');
+            const emptyState = document.getElementById('emptyStateRRAA');
+
+            if (raaaActuales.length === 0) {
+                document.getElementById('rraaTable').style.display = 'none';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            document.getElementById('rraaTable').style.display = 'table';
+            emptyState.style.display = 'none';
+
+            tbody.innerHTML = raaaActuales.map((rraa, idx) => {
+                const pond = rraa.ponderacionTotal;
+                const pctStr = (pond && pond > 0) ? `<span style="margin-left:10px;font-size:0.85em;font-weight:700;color:var(--color-accent);background:#ede9fe;padding:2px 8px;border-radius:12px;">${(pond * 100).toFixed(1)}%</span>` : '';
+                return `
+                <tr>
+                    <td class="row-numero">${rraa.numero}</td>
+                    <td>${rraa.descripcion}${pctStr}</td>
+                    <td>
+                        <button class="delete" onclick="eliminarRRAA(${idx})">🗑️</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        // ===== MOSTRAR TABLA CRITERIOS =====
+        function mostrarTablaCriterios() {
+            const tbody = document.getElementById('criteriosTableBody');
+            const emptyState = document.getElementById('emptyStateCriterios');
+            const badge = document.getElementById('criteriosVisiblesBadge');
+            const criteriosVisibles = criteriosActuales.filter((crit) =>
+                Number(crit.raNumero) === Number(criterioRaActivo) &&
+                (!criterioBusqueda ||
+                    normalizarBusqueda(crit.codigo).includes(criterioBusqueda) ||
+                    normalizarBusqueda(crit.texto).includes(criterioBusqueda))
+            );
+            if (badge) badge.textContent = criteriosVisibles.length;
+
+            if (criteriosVisibles.length === 0) {
+                document.getElementById('criteriosTable').style.display = 'none';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            document.getElementById('criteriosTable').style.display = 'table';
+            emptyState.style.display = 'none';
+
+            tbody.innerHTML = criteriosVisibles.map((crit) => {
+                const idx = criteriosActuales.indexOf(crit);
+                const pct = crit.ponderacionCR;
+                const pctBadge = (pct && pct > 0) ? `<span style="font-size:0.8em;font-weight:700;color:var(--color-accent);background:#ede9fe;padding:2px 7px;border-radius:10px;white-space:nowrap;">${(pct*100).toFixed(1)}%</span>` : '';
+                return `
+                <tr>
+                    <td class="row-numero">${crit.numero}</td>
+                    <td style="font-weight:600;color:var(--color-accent-strong);">${escaparHtml(crit.codigo || crit.nombre)} ${pctBadge}</td>
+                    <td><textarea onchange="actualizarCriterioCampo(${idx}, 'texto', this.value)">${escaparHtml(crit.texto || '')}</textarea></td>
+                    <td>
+                        <button class="delete" onclick="eliminarCriterio(${idx})">🗑️</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function mostrarTablaPonderacionesUnidad() {
+            const tbody = document.getElementById('ponderacionesTableBody');
+            if (!tbody) {
+                return;
+            }
+
+            const unidad = ponderacionesUnidad.find((item) => Number(item.rowIdx) === Number(ponderacionUnidadActiva));
+            if (!unidad) {
+                tbody.innerHTML = '';
+                return;
+            }
+
+            const criteriosVisibles = criteriosActuales.filter((crit) =>
+                Number(crit.raNumero) === Number(ponderacionRaActiva)
+            );
+            tbody.innerHTML = criteriosVisibles.map((crit) => {
+                const critIdx = criteriosActuales.indexOf(crit);
+                const values = unidad.ponderaciones[crit.colIdx] || {
+                    ponderacion: 0,
+                    ponderacionInstituto: 0,
+                    ponderacionEmpresa: 0
+                };
+                const final = sumarPonderaciones(values.ponderacionInstituto, values.ponderacionEmpresa);
+
+                return `
+                    <tr>
+                        <td>CE ${crit.raNumero}</td>
+                        <td><input class="codigo-input" type="text" value="${escaparHtml(crit.codigo || crit.nombre)}" maxlength="10" onchange="actualizarCriterioCampo(${critIdx}, 'codigo', this.value)" /></td>
+                        <td><textarea onchange="actualizarCriterioCampo(${critIdx}, 'texto', this.value)">${escaparHtml(crit.texto || '')}</textarea></td>
+                        <td><input type="number" value="${values.ponderacion || 0}" min="0" max="1" step="0.01" onchange="actualizarPonderacionUnidad(${unidad.rowIdx}, ${crit.colIdx}, 'ponderacion', this.value)" /></td>
+                        <td><button class="delete" onclick="mostrarTablaPonderacionesUnidad()" title="Actualizar">🔄</button></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // ===== ACTUALIZAR ESTADÍSTICAS =====
+        function obtenerUnidadesPonderacionVisibles() {
+            return ponderacionesUnidad.filter((unidad) =>
+                String(unidad.nombre || '').trim() !== '' &&
+                String(unidad.nombre || '').trim() !== '0'
+            );
+        }
+
+        function criteriosPonderacionVisibles() {
+            return criteriosActuales.filter((crit) =>
+                Number(crit.raNumero)
+            );
+        }
+
+        function gruposCePonderacion() {
+            return listaRANumeros().map((raNumero) => {
+                const ce = raaaActuales.find((item) => Number(item.numero) === Number(raNumero)) || { numero: raNumero, descripcion: '' };
+                const criterios = criteriosPonderacionVisibles().filter((crit) => Number(crit.raNumero) === Number(raNumero));
+                return { ce, criterios };
+            }).filter((grupo) => grupo.criterios.length > 0);
+        }
+
+        const MATRIX_CE_COLORS = [
+            { color: 'var(--color-accent)', bg: '#e0e7ff', soft: '#eef2ff' },
+            { color: '#059669', bg: '#d1fae5', soft: '#ecfdf5' },
+            { color: '#d97706', bg: '#ffedd5', soft: '#fff7ed' },
+            { color: '#be185d', bg: '#fce7f3', soft: '#fdf2f8' },
+            { color: '#0284c7', bg: '#e0f2fe', soft: '#f0f9ff' },
+            { color: '#7c3aed', bg: '#ede9fe', soft: '#f5f3ff' }
+        ];
+
+        function estiloCeMatriz(idx) {
+            const item = MATRIX_CE_COLORS[idx % MATRIX_CE_COLORS.length];
+            return `--ce-color:${item.color};--ce-bg:${item.bg};--ce-soft-bg:${item.soft};`;
+        }
+
+        function valorPonderacionUnidad(unidad, colIdx) {
+            const values = unidad && unidad.ponderaciones ? unidad.ponderaciones[colIdx] : null;
+            const valor = values && values.ponderacion !== undefined ? values.ponderacion : 0;
+            return Number(valor) || 0;
+        }
+
+        function formatearNumeroMatriz(value) {
+            const numero = Number(value) || 0;
+            if (!numero) return '';
+            return Number.isInteger(numero) ? String(numero) : String(Number(numero.toFixed(4))).replace('.', ',');
+        }
+
+        function formatearResumenNumero(value) {
+            const numero = Number(value) || 0;
+            if (!numero) return '-';
+            return Number.isInteger(numero) ? String(numero) : String(Number(numero.toFixed(2))).replace('.', ',');
+        }
+
+        function sumaPonderacionUnidad(unidad, grupos = null) {
+            const criterios = grupos
+                ? grupos.flatMap((grupo) => grupo.criterios)
+                : criteriosPonderacionVisibles();
+            return criterios.reduce((sum, crit) => sum + valorPonderacionUnidad(unidad, crit.colIdx), 0);
+        }
+
+        function claseTotalUnidad(total) {
+            const numero = Number(total) || 0;
+            if (numero === 0) return 'zero';
+            if (numero > 100) return 'warn';
+            return '';
+        }
+
+        function formatearPorcentajeMatriz(value) {
+            const numero = Number(value) || 0;
+            if (!numero) return '-';
+            return `${String(Number((numero * 100).toFixed(1))).replace('.', ',')}%`;
+        }
+
+        function codigoInstrumentoUnidad(unidad, ceNumero) {
+            const actual = unidad && unidad.instrPorCe ? unidad.instrPorCe[String(ceNumero)] : '';
+            if (!actual) return '';
+            return typeof actual === 'object' ? String(actual.codigo || '') : String(actual || '');
+        }
+
+        function opcionesInstrumentosMatriz(codigoActual) {
+            const actual = String(codigoActual || '');
+            const base = `<option value="" ${actual ? '' : 'selected'}>-</option>`;
+            return base + instrumentosDisponibles.map((instr) => {
+                const codigo = String(instr.codigo || instr || '');
+                const nombre = String(instr.nombre || '');
+                const label = nombre ? `${codigo} - ${nombre}` : codigo;
+                return `<option value="${escaparHtml(codigo)}" ${codigo === actual ? 'selected' : ''}>${escaparHtml(label)}</option>`;
+            }).join('');
+        }
+
+        function mostrarTablaPonderacionesUnidad() {
+            const table = document.getElementById('ponderacionesTable');
+            const colgroup = document.getElementById('ponderacionesTableCols');
+            const thead = document.getElementById('ponderacionesTableHead');
+            const tbody = document.getElementById('ponderacionesTableBody');
+            const tfoot = document.getElementById('ponderacionesTableFoot');
+            const summary = document.getElementById('ponderacionesMatrixSummary');
+            if (!table || !colgroup || !thead || !tbody || !tfoot) return;
+
+            const unidades = obtenerUnidadesPonderacionVisibles();
+            const grupos = gruposCePonderacion();
+            const totalCrs = grupos.reduce((sum, grupo) => sum + grupo.criterios.length, 0);
+
+            if (summary) {
+                summary.innerHTML = `
+                    <span class="matrix-chip">Unidades ${unidades.length}</span>
+                    <span class="matrix-chip">CE ${grupos.length}</span>
+                    <span class="matrix-chip">CR ${totalCrs}</span>
+                    <span class="matrix-chip muted">Enter baja de fila</span>
+                `;
+            }
+
+            if (!unidades.length || !grupos.length) {
+                const mensaje = !unidades.length
+                    ? 'No hay unidades creadas. Ve a <strong>Gestor de Unidades</strong> y crea al menos una.'
+                    : 'No hay criterios con ponderación asignada. Ve a la pestaña <strong>Criterios</strong> y ponles un peso mayor que 0.';
+                colgroup.innerHTML = '<col class="matrix-col-unit">';
+                thead.innerHTML = '<tr><th class="matrix-unit-sticky">Unidad</th></tr>';
+                tbody.innerHTML = `<tr><td class="matrix-unit-sticky" style="text-align:left; color:#64748b; padding:14px;">${mensaje}</td></tr>`;
+                tfoot.innerHTML = '';
+                return;
+            }
+
+            colgroup.innerHTML = '<col class="matrix-col-unit">' + grupos.map((grupo) => {
+                return '<col class="matrix-col-inst">' + grupo.criterios.map(() => '<col class="matrix-col-cr">').join('');
+            }).join('');
+
+            // table-layout:fixed + width:max-content no siempre respeta el ancho de
+            // columna declarado (algunos motores reparten el sobrante del contenedor
+            // igualmente): fijamos el ancho total en px explicitamente para que las
+            // columnas nunca se estiren mas alla de lo declarado en el <colgroup>.
+            const MATRIX_COL_UNIT_PX = 260, MATRIX_COL_INST_PX = 72, MATRIX_COL_CR_PX = 40;
+            const totalWidthPx = MATRIX_COL_UNIT_PX + grupos.reduce((sum, grupo) => sum + MATRIX_COL_INST_PX + grupo.criterios.length * MATRIX_COL_CR_PX, 0);
+            table.style.width = `${totalWidthPx}px`;
+
+            thead.innerHTML = `
+                <tr>
+                    <th class="matrix-unit-sticky" rowspan="2">Unidad</th>
+                    ${grupos.map((grupo, grupoIdx) => {
+                        const ceNumero = Number(grupo.ce.numero);
+                        const descripcion = String(grupo.ce.descripcion || '');
+                        const titulo = descripcion ? ` title="${escaparHtml(descripcion)}"` : '';
+                        return `<th class="matrix-ce-header" data-col-group="${ceNumero}" colspan="${grupo.criterios.length + 1}" style="${estiloCeMatriz(grupoIdx)}"${titulo}>CE ${ceNumero}</th>`;
+                    }).join('')}
+                </tr>
+                <tr>
+                    ${grupos.map((grupo, grupoIdx) => {
+                        const ceNumero = Number(grupo.ce.numero);
+                        const style = estiloCeMatriz(grupoIdx);
+                        const instCol = `<th class="matrix-inst-header matrix-ce-start" data-col-key="inst-${ceNumero}" style="${style}">Inst.</th>`;
+                        const crCols = grupo.criterios.map((crit, critIdx) => {
+                            const pct = Number(crit.ponderacionCR) > 0 ? `<span class="matrix-criteria-pct">${formatearPorcentajeMatriz(crit.ponderacionCR)}</span>` : '';
+                            const isLast = critIdx === grupo.criterios.length - 1;
+                            const codigo = escaparHtml(crit.codigo || crit.nombre);
+                            const title = [crit.codigo || crit.nombre, crit.texto || ''].filter(Boolean).join(' - ');
+                            return `<th class="matrix-cr-header ${isLast ? 'matrix-ce-end' : ''}" data-col-key="cr-${crit.colIdx}" style="${style}" title="${escaparHtml(title)}"><span class="matrix-cr-code">${codigo}</span>${pct}</th>`;
+                        }).join('');
+                        return instCol + crCols;
+                    }).join('')}
+                </tr>
+            `;
+
+            tbody.innerHTML = unidades.map((unidad, rowPos) => {
+                const nombre = `U${unidad.numero} - ${escaparHtml(unidad.nombre || '')}`;
+                const totalUnidad = sumaPonderacionUnidad(unidad, grupos);
+                const cells = grupos.map((grupo, grupoIdx) => {
+                    const ceNumero = Number(grupo.ce.numero);
+                    const style = estiloCeMatriz(grupoIdx);
+                    const instrActual = codigoInstrumentoUnidad(unidad, ceNumero);
+                    const instrColIdx = Number(grupo.ce.instrColIdx) || 0;
+                    const instCell = `
+                        <td class="matrix-ce-cell matrix-ce-start" data-col-key="inst-${ceNumero}" style="${style}">
+                            <select data-matrix-cell data-row-pos="${rowPos}" data-col-pos="${calcularColPosMatriz(grupos, grupoIdx, -1)}"
+                                onfocus="resaltarCeldaMatriz(this)" onkeydown="navegarMatrizPonderaciones(event)"
+                                onchange="actualizarInstrumentoPonderacion(${unidad.rowIdx}, ${ceNumero}, ${instrColIdx}, this.value)">
+                                ${opcionesInstrumentosMatriz(instrActual)}
+                            </select>
+                        </td>`;
+                    const crCells = grupo.criterios.map((crit, critPos) => {
+                        const colPos = calcularColPosMatriz(grupos, grupoIdx, critPos);
+                        const val = valorPonderacionUnidad(unidad, crit.colIdx);
+                        const isLast = critPos === grupo.criterios.length - 1;
+                        return `
+                            <td class="matrix-ce-cell ${isLast ? 'matrix-ce-end' : ''}" data-col-key="cr-${crit.colIdx}" style="${style}">
+                                <input type="number" value="${formatearNumeroMatriz(val).replace(',', '.')}" min="0" max="100" step="1"
+                                    data-matrix-cell data-row-pos="${rowPos}" data-col-pos="${colPos}"
+                                    data-unidad-row-idx="${unidad.rowIdx}" data-col-idx="${crit.colIdx}"
+                                    onfocus="resaltarCeldaMatriz(this)" onkeydown="navegarMatrizPonderaciones(event)"
+                                    oninput="marcarInputPonderacionSucio(this)"
+                                    onchange="actualizarPonderacionUnidadMatriz(${unidad.rowIdx}, ${crit.colIdx}, this.value)"
+                                    title="Ctrl+D: rellena toda la columna con este valor" />
+                            </td>`;
+                    }).join('');
+                    return instCell + crCells;
+                }).join('');
+                return `<tr data-row-pos="${rowPos}">
+                    <td class="matrix-unit-sticky">
+                        <div class="matrix-unit-cell-content">
+                            <span class="matrix-unit-title">${nombre}</span>
+                            <span class="matrix-unit-total ${claseTotalUnidad(totalUnidad)}" data-row-total="${unidad.rowIdx}" title="Suma de pesos">Σ ${formatearResumenNumero(totalUnidad)}</span>
+                        </div>
+                    </td>
+                    ${cells}
+                </tr>`;
+            }).join('');
+
+            tfoot.innerHTML = construirFooterMatrizPonderaciones(unidades, grupos);
+        }
+
+        function calcularColPosMatriz(grupos, grupoIdx, critPos) {
+            let col = 0;
+            for (let idx = 0; idx < grupoIdx; idx += 1) {
+                col += grupos[idx].criterios.length + 1;
+            }
+            return col + critPos + 1;
+        }
+
+        function construirFooterMatrizPonderaciones(unidades, grupos) {
+            const filaTotalCr = grupos.map((grupo, grupoIdx) => {
+                const style = estiloCeMatriz(grupoIdx);
+                return `<td class="matrix-ce-cell matrix-ce-start" style="${style}"></td>` + grupo.criterios.map((crit, critIdx) => {
+                    const total = unidades.reduce((sum, unidad) => sum + valorPonderacionUnidad(unidad, crit.colIdx), 0);
+                    const isLast = critIdx === grupo.criterios.length - 1;
+                    return `<td class="matrix-ce-cell ${isLast ? 'matrix-ce-end' : ''}" data-total-cr="${crit.colIdx}" style="${style}">${formatearResumenNumero(total)}</td>`;
+                }).join('');
+            }).join('');
+
+            const filaPctCr = grupos.map((grupo, grupoIdx) => {
+                const style = estiloCeMatriz(grupoIdx);
+                return `<td class="matrix-ce-cell matrix-ce-start" style="${style}"></td>` + grupo.criterios.map((crit, critIdx) => {
+                    const isLast = critIdx === grupo.criterios.length - 1;
+                    return `<td class="matrix-ce-cell ${isLast ? 'matrix-ce-end' : ''}" style="${style}">${formatearPorcentajeMatriz(crit.ponderacionCR)}</td>`;
+                }).join('');
+            }).join('');
+
+            let granTotalCe = 0;
+            const filaCe = grupos.map((grupo, grupoIdx) => {
+                const ceTotal = Number(grupo.ce.ponderacionTotal) || grupo.criterios.reduce((sum, crit) => sum + (Number(crit.ponderacionCR) || 0), 0);
+                granTotalCe += ceTotal;
+                return `<td class="matrix-ce-total matrix-ce-start matrix-ce-end" colspan="${grupo.criterios.length + 1}" style="${estiloCeMatriz(grupoIdx)};text-align:left;padding-left:10px;">${formatearPorcentajeMatriz(ceTotal)}</td>`;
+            }).join('');
+            const granTotalClase = Math.abs(granTotalCe - 1) <= 0.005 ? '' : 'warn';
+
+            return `
+                <tr>
+                    <td class="matrix-unit-sticky">Ponderacion final del criterio</td>
+                    ${filaTotalCr}
+                </tr>
+                <tr>
+                    <td class="matrix-unit-sticky">% ponderacion final C.R.</td>
+                    ${filaPctCr}
+                </tr>
+                <tr>
+                    <td class="matrix-unit-sticky">
+                        <div class="matrix-unit-cell-content">
+                            <span>Ponderacion final CE</span>
+                            <span class="matrix-unit-total ${granTotalClase}" title="Suma de todos los CE (debe ser 100%)">Σ ${formatearPorcentajeMatriz(granTotalCe)}</span>
+                        </div>
+                    </td>
+                    ${filaCe}
+                </tr>
+            `;
+        }
+
+        function actualizarPonderacionUnidadMatriz(rowIdx, colIdx, value) {
+            const unidad = ponderacionesUnidad.find((item) => Number(item.rowIdx) === Number(rowIdx));
+            if (!unidad) return;
+            if (!unidad.ponderaciones) unidad.ponderaciones = {};
+            unidad.ponderaciones[colIdx] = unidad.ponderaciones[colIdx] || { ponderacion: 0 };
+            unidad.ponderaciones[colIdx].ponderacion = parseFloat(String(value || '').replace(',', '.')) || 0;
+            marcarCambio();
+            actualizarTotalesMatrizPonderaciones();
+            mostrarTablaResumen();
+        }
+
+        function validarValorPonderacion(value) {
+            const raw = String(value ?? '').trim();
+            if (!raw) return { isInvalid: false, message: '' };
+            const numeric = Number(raw.replace(',', '.'));
+            if (Number.isNaN(numeric) || numeric < 0 || numeric > 100) {
+                return { isInvalid: true, message: 'El peso debe estar entre 0 y 100.' };
+            }
+            return { isInvalid: false, message: '' };
+        }
+
+        function marcarInputPonderacionSucio(input) {
+            input.classList.add('dirty-pond');
+            input.classList.remove('saved-pond');
+            const validacion = validarValorPonderacion(input.value);
+            input.classList.toggle('invalid-pond', validacion.isInvalid);
+            input.title = validacion.message || '';
+        }
+
+        function marcarInputsMatrizComoGuardados() {
+            const dirtyInputs = document.querySelectorAll('#ponderacionesTable input[type="number"].dirty-pond');
+            dirtyInputs.forEach((input) => {
+                input.classList.remove('dirty-pond');
+                input.classList.add('saved-pond');
+            });
+            if (dirtyInputs.length) {
+                setTimeout(() => {
+                    document.querySelectorAll('#ponderacionesTable input[type="number"].saved-pond').forEach((input) => {
+                        input.classList.remove('saved-pond');
+                    });
+                }, 1200);
+            }
+        }
+
+        function rellenarColumnaPonderacion(inputOrigen) {
+            const colPos = inputOrigen.dataset.colPos;
+            const colIdx = Number(inputOrigen.dataset.colIdx);
+            if (colPos === undefined || Number.isNaN(colIdx)) return;
+            const valor = inputOrigen.value;
+            const inputs = document.querySelectorAll(`#ponderacionesTable input[type="number"][data-col-pos="${colPos}"]`);
+            if (inputs.length <= 1) return;
+            if (!confirm(`Rellenar las ${inputs.length} unidades de esta columna con el valor "${valor || 0}"?`)) return;
+            inputs.forEach((input) => {
+                input.value = valor;
+                marcarInputPonderacionSucio(input);
+                actualizarPonderacionUnidadMatriz(Number(input.dataset.unidadRowIdx), colIdx, valor);
+            });
+            inputOrigen.focus();
+        }
+
+        function actualizarInstrumentoPonderacion(rowIdx, ceNumero, instrColIdx, codigo) {
+            const unidad = ponderacionesUnidad.find((item) => Number(item.rowIdx) === Number(rowIdx));
+            if (!unidad) return;
+            if (!unidad.instrPorCe) unidad.instrPorCe = {};
+            unidad.instrPorCe[String(ceNumero)] = { codigo: String(codigo || ''), colIdx: Number(instrColIdx) || 0 };
+            marcarCambio();
+            mostrarTablaResumen();
+        }
+
+        function actualizarTotalesMatrizPonderaciones() {
+            const unidades = obtenerUnidadesPonderacionVisibles();
+            const grupos = gruposCePonderacion();
+            document.querySelectorAll('#ponderacionesTable [data-total-cr]').forEach((cell) => {
+                const colIdx = cell.getAttribute('data-total-cr');
+                const total = unidades.reduce((sum, unidad) => sum + valorPonderacionUnidad(unidad, colIdx), 0);
+                cell.textContent = formatearResumenNumero(total);
+            });
+            document.querySelectorAll('#ponderacionesTable [data-row-total]').forEach((cell) => {
+                const rowIdx = Number(cell.getAttribute('data-row-total'));
+                const unidad = ponderacionesUnidad.find((item) => Number(item.rowIdx) === rowIdx);
+                const total = sumaPonderacionUnidad(unidad, grupos);
+                cell.textContent = `Σ ${formatearResumenNumero(total)}`;
+                cell.className = `matrix-unit-total ${claseTotalUnidad(total)}`.trim();
+            });
+        }
+
+        function resaltarCeldaMatriz(control) {
+            const table = document.getElementById('ponderacionesTable');
+            if (!table) return;
+            table.querySelectorAll('.matrix-row-active').forEach((row) => row.classList.remove('matrix-row-active'));
+            table.querySelectorAll('.matrix-col-active').forEach((cell) => cell.classList.remove('matrix-col-active'));
+
+            const row = control.closest('tr');
+            if (row) row.classList.add('matrix-row-active');
+
+            const cell = control.closest('[data-col-key]');
+            const colKey = cell ? cell.getAttribute('data-col-key') : '';
+            if (!colKey) return;
+            table.querySelectorAll('[data-col-key]').forEach((item) => {
+                if (item.getAttribute('data-col-key') === colKey) item.classList.add('matrix-col-active');
+            });
+        }
+
+        function navegarMatrizPonderaciones(event) {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd') {
+                event.preventDefault();
+                rellenarColumnaPonderacion(event.target);
+                return;
+            }
+            const keys = ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter'];
+            if (!keys.includes(event.key)) return;
+            const cursor = typeof event.target.selectionStart === 'number' ? event.target.selectionStart : null;
+            const valueLength = String(event.target.value || '').length;
+            if (event.key === 'ArrowLeft' && cursor !== null && cursor > 0) return;
+            if (event.key === 'ArrowRight' && cursor !== null && cursor < valueLength) return;
+
+            const rowPos = Number(event.target.dataset.rowPos);
+            const colPos = Number(event.target.dataset.colPos);
+            let nextRow = rowPos;
+            let nextCol = colPos;
+            if (event.key === 'ArrowDown' || event.key === 'Enter') nextRow += 1;
+            if (event.key === 'ArrowUp') nextRow -= 1;
+            if (event.key === 'ArrowRight') nextCol += 1;
+            if (event.key === 'ArrowLeft') nextCol -= 1;
+
+            const selector = `#ponderacionesTable [data-matrix-cell][data-row-pos="${nextRow}"][data-col-pos="${nextCol}"]`;
+            const next = document.querySelector(selector);
+            if (!next) return;
+            event.preventDefault();
+            next.focus();
+            if (typeof next.select === 'function') next.select();
+        }
+
+        function actualizarStatsRRAA() {
+            document.getElementById('totalRRAA').textContent = raaaActuales.length;
+        }
+
+        function actualizarStatsCriterios() {
+            document.getElementById('totalCriterios').textContent = criteriosActuales.length;
+        }
+
+        function actualizarOpcionesRA() {
+            const select = document.getElementById('nuevoCriterioRA');
+            if (!select) {
+                return;
+            }
+
+            select.innerHTML = listaRANumeros().map((raNumero) => `
+                <option value="${raNumero}">CE ${raNumero}</option>
+            `).join('');
+
+            actualizarFiltroRA();
+        }
+
+        function opcionesRA(raNumero) {
+            return listaRANumeros().map((numero) => `
+                <option value="${numero}" ${Number(numero) === Number(raNumero) ? 'selected' : ''}>CE ${numero}</option>
+            `).join('');
+        }
+
+        function listaRANumeros() {
+            const numeros = new Set();
+            raaaActuales.forEach((rraa) => numeros.add(Number(rraa.numero)));
+            criteriosActuales.forEach((criterio) => numeros.add(Number(criterio.raNumero)));
+            return Array.from(numeros).filter(Boolean).sort((a, b) => a - b);
+        }
+
+        function actualizarCriterioRA(idx, value) {
+            const raNumero = Number(value);
+            const rraa = raaaActuales.find(item => Number(item.numero) === raNumero);
+            criteriosActuales[idx].raNumero = raNumero;
+            criteriosActuales[idx].raDescripcion = rraa ? rraa.descripcion : '';
+            criteriosActuales[idx].colIdx = null;
+            criterioRaActivo = raNumero;
+            marcarCambio();
+            actualizarFiltroRA();
+            mostrarTablaCriterios();
+        }
+
+        function actualizarCriterioCampo(idx, campo, value) {
+            if (!criteriosActuales[idx]) {
+                return;
+            }
+
+            if (campo === 'codigo') {
+                criteriosActuales[idx].codigo = value;
+                criteriosActuales[idx].nombre = value;
+                const raNumero = numeroRaDesdeCriterio(value);
+                if (raNumero) {
+                    const rraa = raaaActuales.find(item => Number(item.numero) === raNumero);
+                    criteriosActuales[idx].raNumero = raNumero;
+                    criteriosActuales[idx].raDescripcion = rraa ? rraa.descripcion : '';
+                }
+            } else {
+                criteriosActuales[idx][campo] = value;
+            }
+
+            marcarCambio();
+        }
+
+        function actualizarPonderacionCriterio(idx, campo, value) {
+            criteriosActuales[idx][campo] = parseFloat(value) || 0;
+            criteriosActuales[idx].ponderacion = sumarPonderaciones(
+                criteriosActuales[idx].ponderacionInstituto,
+                criteriosActuales[idx].ponderacionEmpresa
+            );
+            marcarCambio();
+            mostrarTablaCriterios();
+        }
+
+        function sumarPonderaciones(instituto, empresa) {
+            return Number(((parseFloat(instituto) || 0) + (parseFloat(empresa) || 0)).toFixed(6));
+        }
+
+        function actualizarNuevaPonderacionFinal() {
+            const instituto = document.getElementById('nuevoPonderacionInstituto').value;
+            const empresa = document.getElementById('nuevoPonderacionEmpresa').value;
+            document.getElementById('nuevoPonderacion').value = sumarPonderaciones(instituto, empresa);
+        }
+
+        function actualizarOpcionesPonderacion() {
+            const unidadSelect = document.getElementById('unidadPonderacionSelect');
+            const raSelect = document.getElementById('ponderacionRaFiltro');
+            if (!unidadSelect || !raSelect) {
+                return;
+            }
+
+            const unidades = ponderacionesUnidad.filter((unidad) => unidad.nombre);
+            if (!ponderacionUnidadActiva && unidades.length > 0) {
+                ponderacionUnidadActiva = unidades[0].rowIdx;
+            }
+            if (!ponderacionRaActiva) {
+                ponderacionRaActiva = primerRAConCriterios();
+            }
+
+            unidadSelect.innerHTML = unidades.map((unidad) => `
+                <option value="${unidad.rowIdx}" ${Number(unidad.rowIdx) === Number(ponderacionUnidadActiva) ? 'selected' : ''}>U${unidad.numero} - ${escaparHtml(unidad.nombre)}</option>
+            `).join('');
+            raSelect.innerHTML = listaRANumeros().map((raNumero) => {
+                const rraa = raaaActuales.find(item => Number(item.numero) === Number(raNumero));
+                const nombre = rraa && rraa.descripcion ? ` - ${rraa.descripcion}` : '';
+                return `<option value="${raNumero}" ${Number(raNumero) === Number(ponderacionRaActiva) ? 'selected' : ''}>CE ${raNumero}${escaparHtml(nombre)}</option>`;
+            }).join('');
+        }
+
+        function seleccionarUnidadPonderacion(value) {
+            ponderacionUnidadActiva = Number(value);
+            mostrarTablaPonderacionesUnidad();
+            actualizarSelectorInstrumento();
+        }
+
+        function seleccionarRAPonderacion(value) {
+            ponderacionRaActiva = Number(value);
+            mostrarTablaPonderacionesUnidad();
+            actualizarSelectorInstrumento();
+        }
+
+        function actualizarSelectorInstrumento() {
+            const cont = document.getElementById('instrSelect');
+            const sel = document.getElementById('instrPorCeSelect');
+            if (!cont || !sel) return;
+            const unidad = ponderacionesUnidad.find(u => Number(u.rowIdx) === Number(ponderacionUnidadActiva));
+            const ce = raaaActuales.find(r => Number(r.numero) === Number(ponderacionRaActiva));
+            if (!unidad || !ce || instrumentosDisponibles.length === 0) { cont.style.display = 'none'; return; }
+            const actual = (unidad.instrPorCe && unidad.instrPorCe[String(ponderacionRaActiva)]) || '';
+            sel.innerHTML = '<option value="">-- Sin instrumento --</option>' +
+                instrumentosDisponibles.map(i => `<option value="${i.codigo}" ${i.codigo === actual ? 'selected' : ''}>${i.codigo} - ${i.nombre}</option>`).join('');
+            cont.style.display = 'flex';
+        }
+
+        function cambiarInstrumentoCE(codigo) {
+            const unidad = ponderacionesUnidad.find(u => Number(u.rowIdx) === Number(ponderacionUnidadActiva));
+            const ce = raaaActuales.find(r => Number(r.numero) === Number(ponderacionRaActiva));
+            if (!unidad || !ce) return;
+            if (!unidad.instrPorCe) unidad.instrPorCe = {};
+            unidad.instrPorCe[String(ponderacionRaActiva)] = { codigo, colIdx: ce.instrColIdx };
+            marcarCambio();
+        }
+
+        function primeraUnidadPonderacion() {
+            const unidad = ponderacionesUnidad.find((item) => item.nombre);
+            return unidad ? unidad.rowIdx : null;
+        }
+
+        function actualizarPonderacionUnidad(rowIdx, colIdx, campo, value) {
+            const unidad = ponderacionesUnidad.find((item) => Number(item.rowIdx) === Number(rowIdx));
+            if (!unidad) {
+                return;
+            }
+
+            unidad.ponderaciones[colIdx] = unidad.ponderaciones[colIdx] || {
+                ponderacion: 0,
+                ponderacionInstituto: 0,
+                ponderacionEmpresa: 0
+            };
+            unidad.ponderaciones[colIdx][campo] = parseFloat(value) || 0;
+            if (campo !== 'ponderacion') {
+                unidad.ponderaciones[colIdx].ponderacion = sumarPonderaciones(
+                    unidad.ponderaciones[colIdx].ponderacionInstituto,
+                    unidad.ponderaciones[colIdx].ponderacionEmpresa
+                );
+            }
+            marcarCambio();
+            mostrarTablaPonderacionesUnidad();
+            mostrarTablaResumen();
+        }
+
+        function actualizarFiltroRA() {
+            const filtro = document.getElementById('criterioRaFiltro');
+            if (!filtro) {
+                return;
+            }
+
+            const numeros = listaRANumeros();
+            if (!criterioRaActivo && numeros.length > 0) {
+                criterioRaActivo = numeros[0];
+            }
+
+            filtro.innerHTML = numeros.map((raNumero) => {
+                const rraa = raaaActuales.find(item => Number(item.numero) === Number(raNumero));
+                const nombre = rraa && rraa.descripcion ? ` - ${rraa.descripcion}` : '';
+                return `<option value="${raNumero}" ${Number(raNumero) === Number(criterioRaActivo) ? 'selected' : ''}>CE ${raNumero}${escaparHtml(nombre)}</option>`;
+            }).join('');
+
+            const prefs = loadViewPrefs();
+            if (prefs.raNumero && numeros.includes(Number(prefs.raNumero))) {
+                criterioRaActivo = Number(prefs.raNumero);
+                filtro.value = String(criterioRaActivo);
+            }
+        }
+
+        function seleccionarRAFiltro(value) {
+            criterioRaActivo = Number(value);
+            saveViewPrefs();
+            mostrarTablaCriterios();
+        }
+
+        function alternarMenuRA() {
+            const filtro = document.getElementById('criterioRaFiltro');
+            if (filtro) {
+                filtro.focus();
+            }
+        }
+
+        function primerRAConCriterios() {
+            const criterio = criteriosActuales.find((crit) => Number(crit.raNumero));
+            return criterio ? Number(criterio.raNumero) : null;
+        }
+
+        function esCodigoCriterio(value) {
+            return Boolean(value && /^CR\d+\.\d+$/i.test(String(value).trim()));
+        }
+
+        function numeroRaDesdeCriterio(value) {
+            const match = String(value || '').trim().match(/^CR(\d+)\.\d+$/i);
+            return match ? Number(match[1]) : 0;
+        }
+
+        function codigoCriterioEnSecuencia(value, ultimoCrPorCe) {
+            const match = String(value || '').trim().match(/^CR(\d+)\.(\d+)$/i);
+            if (!match) return String(value || '').trim();
+            const ceNumero = Number(match[1]);
+            let crNumero = Number(match[2]);
+            const ultimo = ultimoCrPorCe.get(ceNumero) || 0;
+            if (crNumero <= ultimo) {
+                crNumero = ultimo + 1;
+            }
+            ultimoCrPorCe.set(ceNumero, crNumero);
+            return `CR${ceNumero}.${crNumero}`;
+        }
+
+        function normalizarCodigoCriterio(value) {
+            return String(value || '').trim().replace(/\)$/u, '').toLowerCase();
+        }
+
+        function extraerTextosCriterios(rows = null, sheet = null) {
+            if (!rows) {
+                if (!workbook || !workbook.Sheets['DATOS']) {
+                    return {};
+                }
+                rows = XLSX.utils.sheet_to_json(workbook.Sheets['DATOS'], { header: 1 });
+            }
+
+            const textos = {};
+            const ultimoCrPorCe = new Map();
+
+            rows.forEach((row) => {
+                const codigo = row && row[22];
+                const texto = row && row[23];
+                const codigoCorregido = codigoCriterioEnSecuencia(codigo, ultimoCrPorCe);
+
+                if (codigoCorregido && texto) {
+                    textos[normalizarCodigoCriterio(codigoCorregido)] = String(texto).trim();
+                }
+            });
+
+            return textos;
+        }
+
+        function escaparHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // ===== AGREGAR RRAA =====
+        function agregarRRAA() {
+            const descripcion = document.getElementById('nuevoRRAA').value.trim();
+
+            if (!descripcion) {
+                mostrarMensaje('❌ Por favor ingresa la descripción de la CE', 'error');
+                return;
+            }
+
+            const numeroSiguiente = raaaActuales.length + 1;
+            raaaActuales.push({
+                numero: numeroSiguiente,
+                descripcion: descripcion
+            });
+
+            mostrarTablaRRAA();
+            actualizarStatsRRAA();
+            document.getElementById('nuevoRRAA').value = '';
+            marcarCambio();
+            mostrarMensaje('✅ CE agregada', 'success');
+        }
+
+        // ===== AGREGAR CRITERIO =====
+        function agregarCriterio() {
+            const raNumero = Number(document.getElementById('nuevoCriterioRA').value);
+            const codigo = document.getElementById('nuevoCriterio').value.trim();
+            const texto = document.getElementById('nuevoCriterioTexto').value.trim();
+            const ponderacion = parseFloat(document.getElementById('nuevoPonderacion').value);
+            const ponderacionInstituto = parseFloat(document.getElementById('nuevoPonderacionInstituto').value) || 0;
+            const ponderacionEmpresa = parseFloat(document.getElementById('nuevoPonderacionEmpresa').value) || 0;
+            const ponderacionFinal = sumarPonderaciones(ponderacionInstituto, ponderacionEmpresa);
+
+            if (!raNumero || !codigo) {
+                mostrarMensaje('❌ Completa todos los campos', 'error');
+                return;
+            }
+
+            const rraa = raaaActuales.find(item => Number(item.numero) === raNumero);
+
+            criteriosActuales.push({
+                numero: criteriosActuales.length + 1,
+                codigo,
+                nombre: codigo,
+                texto,
+                raNumero,
+                raDescripcion: rraa ? rraa.descripcion : '',
+                originalCodigo: codigo,
+                ponderacion: ponderacionFinal || ponderacion || 0,
+                ponderacionInstituto,
+                ponderacionEmpresa,
+                colIdx: null
+            });
+
+            mostrarTablaCriterios();
+            actualizarStatsCriterios();
+            document.getElementById('nuevoCriterio').value = '';
+            document.getElementById('nuevoCriterioTexto').value = '';
+            document.getElementById('nuevoPonderacion').value = '';
+            document.getElementById('nuevoPonderacionInstituto').value = '';
+            document.getElementById('nuevoPonderacionEmpresa').value = '';
+            marcarCambio();
+            mostrarMensaje('✅ Criterio agregado', 'success');
+        }
+
+        // ===== ELIMINAR RRAA =====
+        async function eliminarRRAA(idx) {
+            const desc = raaaActuales[idx].descripcion.substring(0, 50);
+            const ok = window.appUx && window.appUx.confirm
+                ? await window.appUx.confirm(`¿Eliminar esta CE?\n"${desc}..."`, { title: 'Eliminar CE', confirmText: 'Eliminar' })
+                : confirm(`¿Eliminar esta CE?\n"${desc}..."`);
+            if (ok) {
+                raaaActuales.splice(idx, 1);
+                mostrarTablaRRAA();
+                actualizarStatsRRAA();
+                marcarCambio();
+                mostrarMensaje('✅ CE eliminada', 'success');
+            }
+        }
+
+        // ===== ELIMINAR CRITERIO =====
+        async function eliminarCriterio(idx) {
+            const ok = window.appUx && window.appUx.confirm
+                ? await window.appUx.confirm(`¿Eliminar "${criteriosActuales[idx].nombre}"?`, { title: 'Eliminar criterio', confirmText: 'Eliminar' })
+                : confirm(`¿Eliminar "${criteriosActuales[idx].nombre}"?`);
+            if (ok) {
+                criteriosActuales.splice(idx, 1);
+                mostrarTablaCriterios();
+                actualizarStatsCriterios();
+                marcarCambio();
+                mostrarMensaje('✅ Criterio eliminado', 'success');
+            }
+        }
+
+        // ===== CAMBIAR TAB =====
+        // ===== TAB RESUMEN POR CE — una sola tabla con todas las CE, mismo formato que Ponderacion por unidad =====
+        function mostrarTablaResumen() {
+            const table = document.getElementById('resumenTable');
+            const colgroup = document.getElementById('resumenTableCols');
+            const thead = document.getElementById('resumenTableHead');
+            const tbody = document.getElementById('resumenTableBody');
+            const tfoot = document.getElementById('resumenTableFoot');
+            if (!table || !colgroup || !thead || !tbody || !tfoot) return;
+
+            const grupos = gruposCePonderacion();
+            const unidades = ponderacionesUnidad.filter(u => String(u.nombre || '').trim() !== '' && u.nombre !== '0');
+
+            if (!unidades.length || !grupos.length) {
+                const mensaje = !unidades.length
+                    ? 'No hay unidades creadas. Ve a <strong>Gestor de Unidades</strong> y crea al menos una.'
+                    : 'No hay criterios con ponderación asignada. Ve a la pestaña <strong>Criterios</strong> y ponles un peso mayor que 0.';
+                colgroup.innerHTML = '<col class="matrix-col-unit">';
+                thead.innerHTML = '<tr><th class="matrix-unit-sticky">Unidad</th></tr>';
+                tbody.innerHTML = `<tr><td class="matrix-unit-sticky" style="text-align:left; color:#64748b; padding:14px;">${mensaje}</td></tr>`;
+                tfoot.innerHTML = '';
+                return;
+            }
+
+            colgroup.innerHTML = '<col class="matrix-col-unit">' + grupos.map((grupo) => {
+                return '<col class="matrix-col-inst">' + grupo.criterios.map(() => '<col class="matrix-col-cr">').join('');
+            }).join('');
+
+            const MATRIX_COL_UNIT_PX = 260, MATRIX_COL_INST_PX = 72, MATRIX_COL_CR_PX = 40;
+            table.style.width = `${MATRIX_COL_UNIT_PX + grupos.reduce((sum, grupo) => sum + MATRIX_COL_INST_PX + grupo.criterios.length * MATRIX_COL_CR_PX, 0)}px`;
+
+            thead.innerHTML = `
+                <tr>
+                    <th class="matrix-unit-sticky" rowspan="2">Unidad</th>
+                    ${grupos.map((grupo, grupoIdx) => {
+                        const titulo = grupo.ce.descripcion ? ` title="${escaparHtml(grupo.ce.descripcion)}"` : '';
+                        return `<th class="matrix-ce-header" colspan="${grupo.criterios.length + 1}" style="${estiloCeMatriz(grupoIdx)}"${titulo}>CE ${grupo.ce.numero}</th>`;
+                    }).join('')}
+                </tr>
+                <tr>
+                    ${grupos.map((grupo, grupoIdx) => {
+                        const style = estiloCeMatriz(grupoIdx);
+                        const instCol = `<th class="matrix-inst-header matrix-ce-start" style="${style}">Inst.</th>`;
+                        const crCols = grupo.criterios.map((cr, critIdx) => {
+                            const pct = Number(cr.ponderacionCR) > 0 ? `<span class="matrix-criteria-pct">${formatearPorcentajeMatriz(cr.ponderacionCR)}</span>` : '';
+                            const isLast = critIdx === grupo.criterios.length - 1;
+                            const title = [cr.codigo || '', cr.texto || ''].filter(Boolean).join(' - ');
+                            return `<th class="matrix-cr-header ${isLast ? 'matrix-ce-end' : ''}" style="${style}" title="${escaparHtml(title)}"><span class="matrix-cr-code">${escaparHtml(cr.codigo)}</span>${pct}</th>`;
+                        }).join('');
+                        return instCol + crCols;
+                    }).join('')}
+                </tr>`;
+
+            tbody.innerHTML = unidades.map((unidad) => {
+                const cells = grupos.map((grupo, grupoIdx) => {
+                    const style = estiloCeMatriz(grupoIdx);
+                    const instrCodigo = codigoInstrumentoUnidad(unidad, grupo.ce.numero);
+                    const instCell = `<td class="matrix-ce-cell matrix-ce-start" style="${style}">${escaparHtml(instrCodigo || '-')}</td>`;
+                    const crCells = grupo.criterios.map((cr, critIdx) => {
+                        const val = valorPonderacionUnidad(unidad, cr.colIdx);
+                        const isLast = critIdx === grupo.criterios.length - 1;
+                        return `<td class="matrix-ce-cell ${isLast ? 'matrix-ce-end' : ''}" style="${style}">${formatearResumenNumero(val)}</td>`;
+                    }).join('');
+                    return instCell + crCells;
+                }).join('');
+                return `<tr><td class="matrix-unit-sticky">${escaparHtml(unidad.nombre)}</td>${cells}</tr>`;
+            }).join('');
+
+            tfoot.innerHTML = `
+                <tr>
+                    <td class="matrix-unit-sticky">Ponderación total del criterio</td>
+                    ${grupos.map((grupo, grupoIdx) => {
+                        const style = estiloCeMatriz(grupoIdx);
+                        const instCell = `<td class="matrix-ce-cell matrix-ce-start" style="${style}"></td>`;
+                        const crCells = grupo.criterios.map((cr, critIdx) => {
+                            const total = unidades.reduce((s, u) => s + valorPonderacionUnidad(u, cr.colIdx), 0);
+                            const isLast = critIdx === grupo.criterios.length - 1;
+                            return `<td class="matrix-ce-cell ${isLast ? 'matrix-ce-end' : ''}" style="${style}">${formatearResumenNumero(total)}</td>`;
+                        }).join('');
+                        return instCell + crCells;
+                    }).join('')}
+                </tr>
+                <tr>
+                    <td class="matrix-unit-sticky">% peso del criterio</td>
+                    ${grupos.map((grupo, grupoIdx) => {
+                        const style = estiloCeMatriz(grupoIdx);
+                        const instCell = `<td class="matrix-ce-cell matrix-ce-start" style="${style}"></td>`;
+                        const crCells = grupo.criterios.map((cr, critIdx) => {
+                            const isLast = critIdx === grupo.criterios.length - 1;
+                            return `<td class="matrix-ce-cell ${isLast ? 'matrix-ce-end' : ''}" style="${style}">${formatearPorcentajeMatriz(cr.ponderacionCR)}</td>`;
+                        }).join('');
+                        return instCell + crCells;
+                    }).join('')}
+                </tr>
+                <tr>
+                    <td class="matrix-unit-sticky">Peso total CE</td>
+                    ${grupos.map((grupo, grupoIdx) => {
+                        const style = estiloCeMatriz(grupoIdx);
+                        const pesoCeTotal = grupo.criterios.reduce((sum, cr) => sum + unidades.reduce((s, u) => s + valorPonderacionUnidad(u, cr.colIdx), 0), 0);
+                        const pct = Number(grupo.ce.ponderacionTotal) > 0 ? formatearPorcentajeMatriz(grupo.ce.ponderacionTotal) : formatearResumenNumero(pesoCeTotal);
+                        return `<td class="matrix-ce-cell matrix-ce-start matrix-ce-end" style="${style}" colspan="${grupo.criterios.length + 1}"><strong>${pct}</strong></td>`;
+                    }).join('')}
+                </tr>`;
+        }
+
+        function cambiarTab(tab) {
+            // Ocultar todos los tabs
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('active');
+            });
+
+            // Mostrar tab seleccionado
+            document.getElementById('tab-' + tab).classList.add('active');
+            event.target.classList.add('active');
+
+            // Refrescar las tablas según el tab seleccionado
+            if (tab === 'rraa') {
+                mostrarTablaRRAA();
+            } else if (tab === 'criterios') {
+                actualizarFiltroRA();
+                mostrarTablaCriterios();
+            } else if (tab === 'ponderaciones') {
+                actualizarOpcionesPonderacion();
+                mostrarTablaPonderacionesUnidad();
+            } else if (tab === 'resumen') {
+                mostrarTablaResumen();
+            }
+        }
+
+        // ===== DESCARGAR EXCEL =====
+        function descargarExcel() {
+            if (isElectronMode) {
+                guardarExcelLocal();
+                return;
+            }
+
+            if (!workbook) {
+                mostrarMensaje('❌ No hay archivo cargado', 'error');
+                return;
+            }
+
+            mostrarLoading(true);
+
+            try {
+                // Actualizar hoja DATOS con RRAA
+                const sheetDatos = workbook.Sheets['DATOS'];
+                const jsonDatos = XLSX.utils.sheet_to_json(sheetDatos, { header: 1 });
+
+                let headerRowIdx = -1;
+                for (let i = 0; i < jsonDatos.length; i++) {
+                    if (jsonDatos[i][1] && String(jsonDatos[i][1]).toUpperCase().includes('RRAA')) {
+                        headerRowIdx = i;
+                        break;
+                    }
+                }
+
+                if (headerRowIdx !== -1) {
+                    const raaaStart = headerRowIdx + 1;
+                    raaaActuales.forEach((rraa, idx) => {
+                        const rowIdx = raaaStart + idx;
+                        jsonDatos[rowIdx] = jsonDatos[rowIdx] || [];
+                        jsonDatos[rowIdx][0] = rraa.numero;
+                        jsonDatos[rowIdx][1] = rraa.descripcion;
+                    });
+                    const newSheetDatos = XLSX.utils.aoa_to_sheet(jsonDatos);
+                    Object.keys(sheetDatos).forEach(key => {
+                        if (key.startsWith('!')) {
+                            newSheetDatos[key] = sheetDatos[key];
+                        }
+                    });
+                    workbook.Sheets['DATOS'] = newSheetDatos;
+                }
+
+                // Actualizar hoja PESOS con criterios
+                const sheetPesos = workbook.Sheets['PESOS'];
+                const jsonPesos = XLSX.utils.sheet_to_json(sheetPesos, { header: 1 });
+
+                criteriosActuales.forEach((crit, idx) => {
+                    const rowIdx = 5 + idx; // Fila 6 en adelante
+                    jsonPesos[rowIdx] = jsonPesos[rowIdx] || [];
+                    jsonPesos[rowIdx][0] = crit.nombre;
+                    jsonPesos[rowIdx][2] = crit.ponderacion;
+                });
+
+                const newSheetPesos = XLSX.utils.aoa_to_sheet(jsonPesos);
+                Object.keys(sheetPesos).forEach(key => {
+                    if (key.startsWith('!')) {
+                        newSheetPesos[key] = sheetPesos[key];
+                    }
+                });
+                workbook.Sheets['PESOS'] = newSheetPesos;
+
+                // Descargar
+                const nombreArchivo = archivoOriginal.name || 'plantilla313_actualizado.xlsx';
+                XLSX.writeFile(workbook, nombreArchivo);
+
+                mostrarMensaje(`✅ Archivo descargado: ${nombreArchivo}`, 'success');
+                mostrarLoading(false);
+
+            } catch (error) {
+                mostrarMensaje('❌ Error: ' + error.message, 'error');
+                mostrarLoading(false);
+            }
+        }
+
+        // ===== CARGAR NUEVO ARCHIVO =====
+        function cargarNuevo() {
+            if (isElectronMode) {
+                seleccionarArchivoLocal();
+                return;
+            }
+
+            location.reload();
+        }
+
+        // ===== GUARDADO AUTOMÁTICO =====
+        function marcarCambio() {
+            hayChangesSinGuardar = true;
+            document.getElementById('btnGuardarFlotante')?.classList.add('visible');
+            if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+            autoSaveTimeout = setTimeout(() => guardarCambiosAutomaticamente(), AUTO_SAVE_DELAY_MS);
+        }
+
+        function mostrarEstadoGuardado(estado, mensaje) {
+            const statusEl = document.getElementById('saveStatus');
+            statusEl.textContent = mensaje;
+            statusEl.className = `save-status ${estado}`;
+            statusEl.style.display = 'block';
+
+            if (estado !== 'saving') {
+                setTimeout(() => {
+                    statusEl.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        function totalCePonderacion(grupo) {
+            const totalCe = Number(grupo.ce && grupo.ce.ponderacionTotal);
+            if (totalCe > 0) return totalCe;
+            const totalUnidad = obtenerUnidadesPonderacionVisibles().reduce((sum, unidad) => {
+                return sum + (grupo.criterios || []).reduce((sub, crit) => sub + valorPonderacionUnidad(unidad, crit.colIdx), 0);
+            }, 0);
+            if (totalUnidad > 0) return totalUnidad;
+            return (grupo.criterios || []).reduce((sum, crit) => {
+                return sum + (Number(crit.ponderacionCR) || Number(crit.ponderacion) || 0);
+            }, 0);
+        }
+
+        function totalUnidadEsValido(total) {
+            const n = Number(total) || 0;
+            return Math.abs(n - 100) <= 0.01 || Math.abs(n - 1) <= 0.0001;
+        }
+
+        function validarRraaAntesDeGuardar() {
+            const inputsInvalidos = document.querySelectorAll('#ponderacionesTable input[type="number"].invalid-pond');
+            if (inputsInvalidos.length) {
+                inputsInvalidos[0].focus();
+                return `No se puede guardar: hay ${inputsInvalidos.length} peso(s) fuera de rango (0-100).`;
+            }
+
+            const grupos = gruposCePonderacion();
+            const ceSinPeso = grupos
+                .filter((grupo) => totalCePonderacion(grupo) <= 0)
+                .map((grupo) => `CE ${grupo.ce.numero}`);
+
+            if (ceSinPeso.length) {
+                const muestra = ceSinPeso.slice(0, 5).join(', ');
+                const resto = ceSinPeso.length > 5 ? ` y ${ceSinPeso.length - 5} mas` : '';
+                return `No se puede guardar: hay CE sin peso (${muestra}${resto}).`;
+            }
+
+            const unidadesMal = obtenerUnidadesPonderacionVisibles()
+                .map((unidad) => ({ unidad, total: sumaPonderacionUnidad(unidad, grupos) }))
+                .filter((item) => !totalUnidadEsValido(item.total));
+
+            if (unidadesMal.length) {
+                const muestra = unidadesMal.slice(0, 4).map(({ unidad, total }) => {
+                    const nombre = unidad.codigo || unidad.nombre || `fila ${unidad.rowIdx + 1}`;
+                    return `${nombre}: ${formatearResumenNumero(total)}`;
+                }).join(', ');
+                const resto = unidadesMal.length > 4 ? ` y ${unidadesMal.length - 4} mas` : '';
+                return `No se puede guardar: hay unidades cuyos pesos no suman 100 (${muestra}${resto}).`;
+            }
+
+            return '';
+        }
+
+        async function guardarCambiosAutomaticamente() {
+            if (!hayChangesSinGuardar || !isElectronMode) {
+                return true;
+            }
+
+            const validationMessage = validarRraaAntesDeGuardar();
+            if (validationMessage) {
+                mostrarEstadoGuardado('error', `❌ ${validationMessage}`);
+                mostrarMensaje(validationMessage, 'error');
+                return false;
+            }
+
+            try {
+                mostrarEstadoGuardado('saving', '💾 Guardando...');
+
+                const payload = {
+                    rraa: raaaActuales,
+                    criterios: criteriosActuales,
+                    ponderacionesUnidad: ponderacionesUnidad
+                };
+
+                const result = await window.electronExcel.saveRraaCriterios(payload);
+
+                if (result && result.rraa) {
+                    raaaActuales = result.rraa;
+                    criteriosActuales = result.criterios || criteriosActuales;
+                    ponderacionesUnidad = result.ponderacionesUnidad || ponderacionesUnidad;
+                }
+
+                hayChangesSinGuardar = false;
+                document.getElementById('btnGuardarFlotante')?.classList.remove('visible');
+                if (autoSaveTimeout) {
+                    clearTimeout(autoSaveTimeout);
+                    autoSaveTimeout = null;
+                }
+                mostrarEstadoGuardado('saved', '✅ Guardado');
+                marcarInputsMatrizComoGuardados();
+                console.log('✅ Cambios guardados automáticamente');
+                return true;
+            } catch (error) {
+                mostrarEstadoGuardado('error', `❌ ${error.message || 'Error al guardar'}`);
+                console.error('Error en guardado automático:', error);
+                return false;
+            }
+        }
+
+        async function guardarCambiosAntesDeCerrar() {
+            if (!isElectronMode || !hayChangesSinGuardar) {
+                return true;
+            }
+
+            if (autoSaveTimeout) {
+                clearTimeout(autoSaveTimeout);
+                autoSaveTimeout = null;
+            }
+
+            mostrarEstadoGuardado('saving', 'Guardando antes de cerrar...');
+            return guardarCambiosAutomaticamente();
+        }
+
+        window.guardarCambiosAntesDeCerrar = guardarCambiosAntesDeCerrar;
+
+        function guardarCambiosForzado() {
+            if (!isElectronMode) {
+                mostrarMensaje('⚠️ Solo disponible en modo local (Electron)', 'info');
+                return;
+            }
+
+            hayChangesSinGuardar = true;
+            guardarCambiosAutomaticamente();
+        }
+
+        async function guardarExcelLocal() {
+            try {
+                const validationMessage = validarRraaAntesDeGuardar();
+                if (validationMessage) {
+                    mostrarMensaje(validationMessage, 'error');
+                    return false;
+                }
+
+                mostrarLoading(true);
+
+                const payload = {
+                    rraa: raaaActuales,
+                    criterios: criteriosActuales,
+                    ponderacionesUnidad: ponderacionesUnidad
+                };
+
+                const result = await window.electronExcel.saveRraaCriterios(payload);
+
+                if (result && result.rraa) {
+                    raaaActuales = result.rraa;
+                    criteriosActuales = result.criterios || criteriosActuales;
+                    ponderacionesUnidad = result.ponderacionesUnidad || ponderacionesUnidad;
+                }
+
+                hayChangesSinGuardar = false;
+                mostrarTablaRRAA();
+                mostrarTablaCriterios();
+                mostrarTablaPonderacionesUnidad();
+                actualizarStatsRRAA();
+                actualizarStatsCriterios();
+                actualizarOpcionesPonderacion();
+                mostrarMensaje(`✅ Guardado en ${result.fileName || 'archivo'}`, 'success');
+                mostrarLoading(false);
+            } catch (error) {
+                mostrarMensaje(`❌ Error: ${error.message}`, 'error');
+                mostrarLoading(false);
+            }
+        }
+
+        // ===== IMPORTACIÓN DE ARCHIVOS =====
+        async function mostrarOpcionesImportacion() {
+            const ok = window.appUx && window.appUx.confirm
+                ? await window.appUx.confirm('¿Deseas importar datos de otro archivo Excel?', { title: 'Importar datos', confirmText: 'Seleccionar archivo' })
+                : confirm('¿Deseas importar datos de otro archivo Excel?');
+            if (ok) document.getElementById('fileInput').click();
+        }
+
+        function importarDesdeArchivo(file) {
+            mostrarLoading(true);
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const importWb = XLSX.read(data, { type: 'array' });
+
+                    if (!importWb.SheetNames.includes('DATOS') || !importWb.SheetNames.includes('PESOS')) {
+                        mostrarMensaje('❌ El archivo debe tener las hojas DATOS y PESOS', 'error');
+                        mostrarLoading(false);
+                        return;
+                    }
+
+                    // Importar RRAA
+                    const datosRows = XLSX.utils.sheet_to_json(importWb.Sheets['DATOS'], { header: 1 });
+                    const importRraa = [];
+                    const rraaStart = findRraaStartRow(datosRows);
+
+                    if (rraaStart !== -1) {
+                        for (let i = rraaStart; i < datosRows.length; i++) {
+                            const row = datosRows[i] || [];
+                            const numero = row[5];
+                            const descripcion = row[6];
+
+                            if (!numero && !descripcion) break;
+
+                            importRraa.push({
+                                numero: numero || importRraa.length + 1,
+                                descripcion: descripcion ? String(descripcion).trim() : ''
+                            });
+                        }
+                    }
+
+                    // Importar Criterios
+                    const pesosRows = XLSX.utils.sheet_to_json(importWb.Sheets['PESOS'], { header: 1 });
+                    const importTextos = extraerTextosCriterios(datosRows, importWb.Sheets['DATOS']);
+                    const importCriterios = [];
+                    const ultimoCrPorCe = new Map();
+
+                    for (let colIdx = 0; colIdx < (pesosRows[3] || []).length; colIdx++) {
+                        const codigo = pesosRows[3] && pesosRows[3][colIdx];
+
+                        if (!esCodigoCriterio(codigo)) continue;
+
+                        const codigoCorregido = codigoCriterioEnSecuencia(codigo, ultimoCrPorCe);
+                        const raNumero = numeroRaDesdeCriterio(codigoCorregido);
+                        const rraa = importRraa.find(item => Number(item.numero) === raNumero);
+
+                        importCriterios.push({
+                            numero: importCriterios.length + 1,
+                            codigo: codigoCorregido,
+                            nombre: codigoCorregido,
+                            raNumero,
+                            raDescripcion: rraa ? rraa.descripcion : '',
+                            ponderacion: pesosRows[21] && pesosRows[21][colIdx] ? pesosRows[21][colIdx] : 0,
+                            ponderacionInstituto: pesosRows[21] && pesosRows[21][colIdx + 1] ? pesosRows[21][colIdx + 1] : 0,
+                            ponderacionEmpresa: pesosRows[21] && pesosRows[21][colIdx + 2] ? pesosRows[21][colIdx + 2] : 0,
+                            texto: importTextos[normalizarCodigoCriterio(codigoCorregido)] || importTextos[normalizarCodigoCriterio(codigo)] || '',
+                            colIdx,
+                            actualCol: colIdx
+                        });
+                    }
+
+                    // Importar Unidades
+                    const unidadesStart = findUnidadesStartRow(datosRows);
+                    const importUnidades = [];
+
+                    if (unidadesStart !== -1) {
+                        for (let idx = 0; idx < 16; idx++) {
+                            const row = datosRows[unidadesStart + idx] || [];
+                            const codigo = row[8] || `U${idx + 1}`;
+                            const nombre = row[9] || '';
+                            const evaluacion = row[10] || '';
+                            const horas = row[11] ?? '';
+
+                            if (codigo || nombre || evaluacion || horas !== '') {
+                                importUnidades.push({
+                                    codigo: String(codigo || `U${idx + 1}`),
+                                    nombre: String(nombre || ''),
+                                    evaluacion: String(evaluacion || ''),
+                                    horas: horas === null ? '' : String(horas)
+                                });
+                            }
+                        }
+                    }
+
+                    // Mostrar resumen de importación
+                    const resumen = `
+📊 IMPORTACIÓN COMPLETADA
+
+CE: ${importRraa.length} registros
+Criterios: ${importCriterios.length} registros
+Unidades: ${importUnidades.length} registros
+
+¿Deseas reemplazar los datos actuales con los importados?
+                    `.trim();
+
+                    if (confirm(resumen)) {
+                        raaaActuales = importRraa;
+                        criteriosActuales = importCriterios;
+                        mostrarTablaRRAA();
+                        mostrarTablaCriterios();
+                        mostrarTablaPonderacionesUnidad();
+                        actualizarStatsRRAA();
+                        actualizarStatsCriterios();
+                        actualizarOpcionesRA();
+                        actualizarOpcionesPonderacion();
+                        mostrarMensaje(`✅ Importados: ${importRraa.length} CE, ${importCriterios.length} criterios`, 'success');
+                    }
+
+                    mostrarLoading(false);
+
+                } catch (error) {
+                    mostrarMensaje('❌ Error: ' + error.message, 'error');
+                    mostrarLoading(false);
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        function findRraaStartRow(rows) {
+            const headerRowIdx = rows.findIndex((row) => {
+                const rraaHeader = row && row[6];
+                return rraaHeader && String(rraaHeader).toUpperCase().includes('RRAA');
+            });
+
+            return headerRowIdx === -1 ? -1 : headerRowIdx + 1;
+        }
+
+        function findUnidadesStartRow(rows) {
+            const headerRowIdx = rows.findIndex((row) => {
+                const unidadHeader = row && row[9];
+                return (
+                    unidadHeader &&
+                    row[8] &&
+                    String(unidadHeader).toUpperCase().includes('UNIDADES')
+                );
+            });
+
+            return headerRowIdx === -1 ? -1 : headerRowIdx + 1;
+        }
+
+        // ===== FUNCIONES AUXILIARES =====
+        function mostrarMensaje(texto, tipo) {
+            const elem = document.getElementById('message');
+            const pretty = (tipo === 'error' && window.appUx && window.appUx.hintError)
+                ? window.appUx.hintError(texto)
+                : texto;
+            elem.textContent = pretty;
+            elem.className = `message show ${tipo}`;
+            setTimeout(() => {
+                elem.classList.remove('show');
+            }, 5000);
+        }
+
+        function mostrarLoading(mostrar) {
+            document.getElementById('loading').style.display = mostrar ? 'block' : 'none';
+        }
+
+        function normalizarBusqueda(text) {
+            return String(text || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+        }
+
+        function saveViewPrefs() {
+            try {
+                localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify({
+                    criterioSearch: criterioBusqueda || '',
+                    raNumero: criterioRaActivo || null
+                }));
+            } catch {}
+        }
+
+        function loadViewPrefs() {
+            try {
+                return JSON.parse(localStorage.getItem(VIEW_PREFS_KEY) || 'null') || {};
+            } catch {
+                return {};
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (isElectronMode) seleccionarArchivoLocal({ auto: true });
+
+            const searchInput = document.getElementById('criterioSearchInput');
+            const clearSearchButton = document.getElementById('clearCriterioSearchButton');
+            const prefs = loadViewPrefs();
+            if (prefs.criterioSearch && searchInput) {
+                searchInput.value = prefs.criterioSearch;
+                criterioBusqueda = normalizarBusqueda(prefs.criterioSearch);
+            }
+            if (searchInput) {
+                searchInput.addEventListener('input', () => {
+                    criterioBusqueda = normalizarBusqueda(searchInput.value);
+                    saveViewPrefs();
+                    mostrarTablaCriterios();
+                });
+            }
+
+            if (clearSearchButton) {
+                clearSearchButton.addEventListener('click', () => {
+                    criterioBusqueda = '';
+                    if (searchInput) {
+                        searchInput.value = '';
+                    }
+                    saveViewPrefs();
+                    mostrarTablaCriterios();
+                });
+            }
+
+            document.addEventListener('keydown', (event) => {
+                if (event.ctrlKey && event.key.toLowerCase() === 's') {
+                    event.preventDefault();
+                    guardarCambiosForzado();
+                }
+            });
+
+            window.addEventListener('beforeunload', (event) => {
+                if (!hayChangesSinGuardar) return;
+                event.preventDefault();
+                event.returnValue = 'Hay cambios de CE/criterios pendientes de guardar.';
+            });
+        });
+
+        window.addEventListener('focus', () => comprobarActualizacionExterna());
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) comprobarActualizacionExterna();
+        });
+
+        // Verificar carga de XLSX (modo browser)
+        const xlsxCheckInterval = setInterval(() => {
+            if (checkXLSX()) {
+                clearInterval(xlsxCheckInterval);
+            }
+        }, 500);
+    </script>
+</body>
+</html>

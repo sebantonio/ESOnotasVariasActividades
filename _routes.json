@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": [],
+  "rules": [
+    {
+      "type": "route",
+      "pattern": "/",
+      "path": "/index.html"
+    },
+    {
+      "type": "route",
+      "pattern": "/index.html",
+      "path": "/index.html"
+    },
+    {
+      "type": "route",
+      "pattern": "/*.html",
+      "path": "/:1.html"
+    }
+  ]
+}

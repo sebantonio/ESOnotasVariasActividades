@@ -1,0 +1,16 @@
+{
+  "name": "eso-notas-local",
+  "version": "0.1.203",
+  "description": "Aplicacion local para gestionar notas ESO en una plantilla Excel.",
+  "scripts": {
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "node scripts/bump-version.js && tauri build && node scripts/copy-exe.js"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.1"
+  }
+}

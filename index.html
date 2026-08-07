@@ -1,0 +1,2016 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Notas ESO</title>
+    <link rel="icon" href="notasESOicon.png">
+    <link rel="stylesheet" href="ux-common.css">
+    <script src="ux-common.js" defer></script>
+    <style>
+        /* Hallmark · genre: modern-minimal · macrostructure: adapted-app-workbench (portada) · design-system: design.md · designed-as-app */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Remapea las variables locales de esta pagina a los tokens globales
+               de design.md/ux-common.css: el resto de este bloque no cambia. */
+            --bg: var(--color-paper);
+            --panel: var(--color-surface);
+            --panel-soft: var(--color-accent-soft);
+            --text: var(--color-ink);
+            --muted: var(--color-ink-2);
+            --line: var(--color-rule);
+            --primary: var(--color-accent);
+            --primary-dark: var(--color-accent-strong);
+            --accent: var(--color-accent-strong);
+            --warning: var(--color-warning);
+            --shadow: 0 16px 40px rgba(31, 41, 55, 0.12);
+            --section-shadow: 0 18px 44px rgba(31, 41, 55, 0.13), 0 1px 0 rgba(255, 255, 255, 0.78) inset;
+        }
+
+        body {
+            min-height: 100vh;
+            font-family: var(--font-body);
+            color: var(--text);
+            background: var(--bg);
+            padding: 28px;
+        }
+
+        .shell {
+            width: min(1180px, 100%);
+            margin: 0 auto;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 28px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand-mark {
+            width: 80px;
+            height: 80px;
+            display: grid;
+            place-items: center;
+            border-radius: var(--radius-card);
+            overflow: hidden;
+            box-shadow: 0 16px 38px rgba(37, 99, 235, 0.24);
+            cursor: pointer;
+            transition: transform var(--dur-med) var(--ease-out), box-shadow var(--dur-med) var(--ease-out);
+        }
+
+        .brand-mark img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .brand-mark:hover {
+            transform: scale(1.06);
+            box-shadow: 0 16px 36px rgba(37, 99, 235, 0.35);
+        }
+
+        .brand h1 {
+            font-family: var(--font-display);
+            font-size: clamp(1.55rem, 3vw, var(--text-display));
+            font-weight: 700;
+            line-height: 1.05;
+            letter-spacing: 0;
+        }
+
+        .brand p {
+            margin-top: 4px;
+            color: var(--muted);
+            font-size: 0.98rem;
+        }
+
+        .version {
+            flex: 0 0 auto;
+            color: var(--muted);
+            background: rgba(255, 255, 255, 0.82);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 0.86rem;
+            font-weight: 700;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .page-nav {
+            display: flex;
+            gap: 8px;
+        }
+
+        .nav-button,
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 38px;
+            padding: 8px 13px;
+            color: var(--color-accent-strong);
+            background: var(--color-accent-soft);
+            border: 1px solid var(--color-rule-strong);
+            border-radius: 8px;
+            font: inherit;
+            font-size: 0.9rem;
+            font-weight: 800;
+            text-decoration: none;
+            cursor: pointer;
+            box-shadow: 0 8px 18px rgba(79, 70, 229, 0.10);
+            transition: background var(--dur-med) var(--ease-out), border-color var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-out), box-shadow var(--dur-med) var(--ease-out);
+        }
+
+        .nav-button:hover,
+        .nav-link:hover {
+            background: #e0e7ff;
+            border-color: rgba(79, 70, 229, 0.45);
+            box-shadow: 0 10px 22px rgba(79, 70, 229, 0.16);
+            transform: translateY(-1px);
+        }
+
+        .hero {
+            display: grid;
+            grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+            gap: 22px;
+            align-items: stretch;
+            margin-bottom: 22px;
+        }
+
+        .daily-panel,
+        .side-panel,
+        .setup-panel {
+            background: rgba(255, 255, 255, 0.94);
+            border: 1px solid rgba(216, 225, 238, 0.9);
+            border-radius: 8px;
+            box-shadow: var(--section-shadow);
+        }
+
+        .daily-panel {
+            border-left: 5px solid rgba(99, 102, 241, 0.38);
+            padding: clamp(24px, 4vw, 38px);
+        }
+
+        .side-panel {
+            border-left: 5px solid rgba(8, 145, 178, 0.34);
+        }
+
+        .section-kicker {
+            color: var(--accent);
+            font-size: 0.82rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 10px;
+        }
+
+        .daily-panel h2 {
+            max-width: 760px;
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: clamp(2rem, 5vw, 4rem);
+            line-height: 1;
+            letter-spacing: 0;
+            margin-bottom: 14px;
+        }
+
+        .daily-panel p {
+            max-width: 680px;
+            color: var(--muted);
+            font-size: 1.08rem;
+            line-height: 1.55;
+        }
+
+        .primary-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 14px;
+            margin-top: 28px;
+        }
+
+        .action-card {
+            display: flex;
+            min-height: 148px;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 18px;
+            color: var(--text);
+            text-decoration: none;
+            background: #ffffff;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            transition: transform var(--dur-med) var(--ease-out), border-color var(--dur-med) var(--ease-out), box-shadow var(--dur-med) var(--ease-out);
+        }
+
+        .action-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(37, 99, 235, 0.45);
+            box-shadow: 0 14px 30px rgba(37, 99, 235, 0.14);
+        }
+
+        .action-icon {
+            width: 48px;
+            height: 48px;
+            display: grid;
+            place-items: center;
+            background: rgba(37, 99, 235, 0.1);
+            border-radius: 10px;
+            font-size: 1.75rem;
+            font-weight: 800;
+            transition: transform var(--dur-med) var(--ease-out), background var(--dur-med) var(--ease-out);
+        }
+
+        .action-card:hover .action-icon {
+            transform: scale(1.1);
+            background: rgba(37, 99, 235, 0.18);
+        }
+
+        .action-card:nth-child(2) .action-icon {
+            background: rgba(180, 83, 9, 0.1);
+        }
+
+        .action-card:nth-child(2):hover .action-icon {
+            background: rgba(180, 83, 9, 0.18);
+        }
+
+        .action-card:nth-child(3) .action-icon {
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .action-card:nth-child(3):hover .action-icon {
+            background: rgba(34, 197, 94, 0.18);
+        }
+
+        .action-card:nth-child(4) .action-icon {
+            background: rgba(15, 118, 110, 0.1);
+        }
+
+        .action-card:nth-child(4):hover .action-icon {
+            background: rgba(15, 118, 110, 0.18);
+        }
+
+        .action-card strong {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 1.12rem;
+        }
+
+        .action-card span {
+            display: block;
+            color: var(--muted);
+            font-size: 0.93rem;
+            line-height: 1.4;
+        }
+
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding: 20px;
+            min-height: 100%;
+            overflow-y: auto;
+        }
+
+        .file-name {
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .recent-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .recent-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 7px 10px;
+            border-radius: 6px;
+            background: rgba(37, 99, 235, 0.04);
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: background var(--dur-short) var(--ease-out), border-color var(--dur-short) var(--ease-out);
+            group: 'recent-item';
+        }
+
+        .recent-item:hover {
+            background: rgba(37, 99, 235, 0.1);
+            border-color: rgba(37, 99, 235, 0.25);
+        }
+
+        .recent-item.active-file {
+            background: rgba(99, 102, 241, 0.12);
+            border-color: rgba(67, 56, 202, 0.5);
+            box-shadow: inset 4px 0 0 var(--primary-dark);
+        }
+
+        .recent-item.active-file .recent-item-name {
+            color: var(--primary-dark);
+            font-weight: 700;
+        }
+
+        .recent-item-content {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .recent-item-name {
+            font-size: 0.87rem;
+            font-weight: 600;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+        }
+
+        .recent-item-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+            opacity: 0;
+            transition: opacity var(--dur-short) var(--ease-out);
+        }
+
+        .recent-item:hover .recent-item-actions {
+            opacity: 1;
+        }
+
+        .recent-item-arrow {
+            color: var(--primary);
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+
+        .recent-item-delete {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            color: #dc2626;
+            background: transparent;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background var(--dur-short) var(--ease-out), color var(--dur-short) var(--ease-out);
+            font-weight: bold;
+        }
+
+        .recent-item-delete:hover {
+            background: rgba(220, 38, 38, 0.1);
+            color: #991b1b;
+        }
+
+        .recent-clear-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            padding: 0;
+            margin-left: 6px;
+            background: transparent;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background var(--dur-short) var(--ease-out);
+            vertical-align: middle;
+        }
+
+        .recent-clear-btn:hover {
+            background: rgba(220, 38, 38, 0.15);
+        }
+
+        .recent-empty {
+            font-size: 0.87rem;
+            color: var(--muted);
+            font-style: italic;
+        }
+
+        .side-action {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: auto;
+            padding-top: 20px;
+        }
+
+        .side-action-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-height: 118px;
+            padding: 20px;
+            color: var(--text);
+            text-decoration: none;
+            background: #ffffff;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            transition: transform var(--dur-med) var(--ease-out), border-color var(--dur-med) var(--ease-out), box-shadow var(--dur-med) var(--ease-out);
+        }
+
+        .side-action-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(37, 99, 235, 0.45);
+            box-shadow: 0 12px 26px rgba(37, 99, 235, 0.12);
+        }
+
+        .side-action-icon {
+            flex: 0 0 auto;
+            width: 64px;
+            height: 64px;
+            display: grid;
+            place-items: center;
+            color: var(--primary-dark);
+            background: rgba(15, 118, 110, 0.1);
+            border-radius: 10px;
+            font-size: 2rem;
+            font-weight: 800;
+        }
+
+        .side-action-card strong,
+        .side-action-card span {
+            display: block;
+        }
+
+        .side-action-card strong {
+            margin-bottom: 6px;
+            font-size: 1.18rem;
+        }
+
+        .side-action-card span {
+            color: var(--muted);
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        .online-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 7px 12px;
+            color: var(--primary);
+            background: rgba(37, 99, 235, 0.06);
+            border: 1px solid rgba(37, 99, 235, 0.22);
+            border-radius: 7px;
+            text-decoration: none;
+            font-size: 0.87rem;
+            font-weight: 700;
+            transition: background var(--dur-short) var(--ease-out);
+        }
+
+        .online-link:hover {
+            background: rgba(37, 99, 235, 0.13);
+        }
+
+        .setup-panel {
+            border-left: 5px solid rgba(180, 83, 9, 0.26);
+            padding: 22px;
+            margin-bottom: 24px;
+        }
+
+        .setup-header {
+            margin-bottom: 16px;
+        }
+
+        .setup-header h2 {
+            font-size: 1.25rem;
+        }
+
+        .setup-header p {
+            color: var(--muted);
+            font-size: 0.95rem;
+            margin-top: 4px;
+        }
+
+        .small-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 38px;
+            padding: 8px 13px;
+            color: var(--color-accent-strong);
+            background: #eef2ff;
+            border: 1px solid #c7d2fe;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.92rem;
+            font-weight: 800;
+            box-shadow: 0 8px 18px rgba(79, 70, 229, 0.10);
+            transition: background var(--dur-med) var(--ease-out), border-color var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-out), box-shadow var(--dur-med) var(--ease-out);
+        }
+
+        .small-button:hover {
+            background: #e0e7ff;
+            border-color: rgba(79, 70, 229, 0.48);
+            box-shadow: 0 10px 22px rgba(79, 70, 229, 0.16);
+            transform: translateY(-2px);
+        }
+
+        .file-actions .small-button:first-child {
+            color: #ffffff;
+            background: var(--color-accent);
+            border-color: var(--color-accent);
+        }
+
+        .file-actions .small-button:first-child:hover {
+            background: var(--color-accent-strong);
+            border-color: var(--color-accent-strong);
+        }
+
+        .workflow {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 18px;
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+        }
+
+        .step-number {
+            color: var(--primary);
+            font-size: 0.82rem;
+            font-weight: 900;
+            margin-bottom: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 32px;
+            height: 32px;
+            background: rgba(37, 99, 235, 0.1);
+            border-radius: 8px;
+            font-size: 1.2rem;
+        }
+
+        .step h3 {
+            font-size: 1rem;
+            margin-bottom: 8px;
+        }
+
+        .step p {
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.45;
+        }
+
+        .step .small-button {
+            margin-top: auto;
+        }
+
+        .footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            color: var(--muted);
+            font-size: 0.88rem;
+            padding: 6px 2px;
+        }
+
+        @media (max-width: 920px) {
+            body {
+                padding: 18px;
+            }
+
+            .hero {
+                grid-template-columns: 1fr;
+            }
+
+            .primary-actions,
+            .workflow {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 620px) {
+            .topbar,
+            .footer {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .version {
+                align-self: flex-start;
+            }
+
+            .header-actions,
+            .page-nav {
+                width: 100%;
+            }
+
+            .page-nav .nav-button,
+            .page-nav .nav-link {
+                flex: 1;
+            }
+
+            .primary-actions,
+            .workflow {
+                grid-template-columns: 1fr;
+            }
+
+            .daily-panel,
+            .side-panel,
+            .setup-panel {
+                padding: 18px;
+            }
+
+            .action-card {
+                min-height: 124px;
+            }
+        }
+
+        .file-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 8px 10px;
+            border: 1.5px solid rgba(67, 56, 202, 0.4);
+            border-radius: 8px;
+            background: linear-gradient(160deg, rgba(99, 102, 241, 0.08) 0%, rgba(238, 244, 255, 0.6) 100%);
+            box-shadow: 0 1px 6px rgba(99, 102, 241, 0.08);
+        }
+
+        .file-meta .section-kicker {
+            font-size: 0.72rem;
+            margin-bottom: 2px;
+        }
+
+        .file-name {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--primary-dark);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+
+        .file-mtime {
+            font-size: 0.73rem;
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        .file-stats {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .stat-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 7px;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.22);
+            border-radius: 999px;
+            font-size: 0.71rem;
+            font-weight: 700;
+            color: var(--primary-dark);
+        }
+
+        .top-row {
+            display: flex;
+            align-items: stretch;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .continue-banner {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: rgba(99, 102, 241, 0.06);
+            border: 1px solid rgba(99, 102, 241, 0.22);
+            border-radius: 8px;
+            flex: 1;
+        }
+
+        .utilidades-quick-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 14px;
+            color: var(--color-accent-strong);
+            background: #eef2ff;
+            border: 1px solid #c7d2fe;
+            border-radius: 8px;
+            font: inherit;
+            font-size: 0.84rem;
+            font-weight: 850;
+            text-decoration: none;
+            white-space: nowrap;
+            transition: background var(--dur-med) var(--ease-out), border-color var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-out);
+        }
+
+        .utilidades-quick-link:hover {
+            background: #d1fae5;
+            border-color: rgba(5, 150, 105, 0.46);
+            transform: translateY(-1px);
+        }
+
+        .continue-banner-link {
+            flex: 1;
+            color: var(--primary-dark);
+            font-weight: 700;
+            font-size: 0.88rem;
+            text-decoration: none;
+        }
+
+        .continue-banner-link:hover { text-decoration: underline; }
+
+        .continue-dismiss {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--muted);
+            font-size: 0.8rem;
+            padding: 2px 5px;
+            border-radius: 4px;
+            line-height: 1;
+        }
+
+        .continue-dismiss:hover { background: rgba(0,0,0,0.07); }
+
+        .alertas-panel {
+            background: rgba(255, 255, 255, 0.94);
+            border: 1px solid rgba(216, 225, 238, 0.9);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            padding: 14px 16px;
+            margin-bottom: 22px;
+        }
+
+        .alertas-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .alertas-header .section-kicker { margin-bottom: 0; }
+
+        .alertas-eva-select {
+            margin-left: auto;
+            padding: 3px 8px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            font: inherit;
+            font-size: 0.8rem;
+            background: white;
+            color: var(--text);
+            cursor: pointer;
+        }
+
+        .alertas-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .alerta-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .alerta-item.bad  { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        .alerta-item.warn { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+        .alerta-item:hover { filter: brightness(0.95); }
+        .alerta-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .alerta-dot.bad  { background: #ef4444; }
+        .alerta-dot.warn { background: #f59e0b; }
+        .alertas-ok { color: var(--muted); font-size: 0.83rem; font-style: italic; }
+        .alertas-loading { color: var(--muted); font-size: 0.83rem; }
+
+        /* ── Zonas ── */
+        .daily-panel h2 {
+            font-size: clamp(1.4rem, 3vw, 2rem);
+            line-height: 1.1;
+            margin-bottom: 4px;
+        }
+
+        .daily-panel > p { display: none; }
+
+        .zone {
+            margin-top: 14px;
+            background: rgba(255, 255, 255, 0.84);
+            border: 1px solid rgba(216, 225, 238, 0.95);
+            border-left: 4px solid rgba(99, 102, 241, 0.42);
+            border-radius: 8px;
+            padding: 12px 14px 14px;
+            box-shadow: 0 10px 24px rgba(31, 41, 55, 0.08);
+        }
+
+        #alertasPanel {
+            border-left-color: rgba(245, 158, 11, 0.58);
+        }
+
+        .zone-hdr {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .zone-info { flex: 1; min-width: 0; }
+
+        .zone-kicker {
+            color: var(--accent);
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 1px;
+        }
+
+        .zone-title {
+            display: block;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 1px;
+        }
+
+        .zone-desc {
+            display: block;
+            font-size: 0.79rem;
+            color: var(--muted);
+        }
+
+        .zone-badge {
+            flex-shrink: 0;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .zone-badge.escritura {
+            background: rgba(99, 102, 241, 0.09);
+            color: var(--primary-dark);
+            border: 1px solid rgba(99, 102, 241, 0.22);
+        }
+
+        .zone-badge.consulta {
+            background: rgba(15, 118, 110, 0.08);
+            color: #0f766e;
+            border: 1px solid rgba(15, 118, 110, 0.22);
+        }
+
+        .zone-badge.alerta {
+            background: rgba(245, 158, 11, 0.1);
+            color: #92400e;
+            border: 1px solid rgba(245, 158, 11, 0.28);
+        }
+
+        .zone-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
+        }
+
+        .action-card--sm {
+            min-height: 88px;
+            gap: 10px;
+            padding: 12px;
+            background: #ecfdf5;
+            border-color: #a7f3d0;
+            box-shadow: 0 8px 18px rgba(5, 150, 105, 0.07);
+        }
+
+        .action-card--sm:hover {
+            background: #d1fae5;
+            border-color: rgba(5, 150, 105, 0.46);
+            box-shadow: 0 10px 22px rgba(5, 150, 105, 0.14);
+        }
+
+        .action-card--sm .action-icon {
+            width: 36px;
+            height: 36px;
+            font-size: 1.25rem;
+        }
+
+        .action-card--sm strong { font-size: 0.93rem; margin-bottom: 3px; }
+        .action-card--sm span  { font-size: 0.81rem; }
+
+        /* ── Consulta full-width ── */
+        .consulta-panel {
+            background: rgba(255, 255, 255, 0.94);
+            border: 1px solid rgba(216, 225, 238, 0.9);
+            border-left: 5px solid rgba(15, 118, 110, 0.34);
+            border-radius: 8px;
+            box-shadow: var(--section-shadow);
+            padding: 18px 20px 20px;
+            margin-bottom: 22px;
+        }
+
+        .consulta-hdr {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+
+        .lcard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+        }
+
+        .lcard {
+            --ar: 99; --ag: 102; --ab: 241;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 14px;
+            text-decoration: none;
+            color: var(--text);
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 8px 18px rgba(5, 150, 105, 0.07);
+            transition: background var(--dur-med) var(--ease-out), border-color var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-out), box-shadow var(--dur-med) var(--ease-out);
+        }
+
+        .lcard:hover {
+            transform: translateY(-2px);
+            background: #d1fae5;
+            border-color: rgba(5, 150, 105, 0.46);
+            box-shadow: 0 10px 22px rgba(5, 150, 105, 0.14);
+        }
+
+        .lcard-badge {
+            width: 40px;
+            height: 40px;
+            display: grid;
+            place-items: center;
+            border-radius: 8px;
+            font-size: 1.05rem;
+            font-weight: 900;
+            color: white;
+            transition: transform var(--dur-med) var(--ease-out);
+        }
+
+        .lcard:hover .lcard-badge { transform: scale(1.08); }
+
+        .lcard strong { display: block; font-size: 0.93rem; font-weight: 700; margin-bottom: 2px; }
+        .lcard span  { display: block; font-size: 0.79rem; color: var(--muted); line-height: 1.35; }
+    </style>
+</head>
+<body>
+    <main class="shell">
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand-mark" onclick="window.location.href='asteroides.html'" title="🚀 ¡Easter egg!"><img src="notasESOicon.png" alt="ESO"></div>
+                <div>
+                    <h1>Gestor de Notas ESO</h1>
+                    <p>Panel de trabajo para el curso actual</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <nav class="page-nav" aria-label="Navegación">
+                    <button class="nav-button" type="button" onclick="window.history.back()">← Atrás</button>
+                    <a class="nav-link" href="index.html">⌂ Inicio</a>
+                </nav>
+                <div class="version" id="appVersionBadge">v0.1.103</div>
+            </div>
+        </header>
+
+        <section class="hero" aria-labelledby="daily-title">
+            <div class="daily-panel">
+                <div class="section-kicker">En producción</div>
+                <h2 id="daily-title">Trabajo diario de evaluación</h2>
+
+                <div class="top-row">
+                    <div class="continue-banner" id="continueBanner">
+                        <a class="continue-banner-link" href="#" id="continueLink">↩ Continuar</a>
+                        <button class="continue-dismiss" type="button" id="continueDismiss" title="Cerrar" aria-label="Cerrar acceso rapido">✕</button>
+                    </div>
+                    <a class="utilidades-quick-link" href="utilidades.html">⏱ Utilidades</a>
+                </div>
+
+                <!-- ZONA 1: Escritura -->
+                <div class="zone">
+                    <div class="zone-hdr">
+                        <div class="zone-info">
+                            <div class="zone-kicker">Escritura</div>
+                            <strong class="zone-title">Introducir datos</strong>
+                            <span class="zone-desc">Acciones que escriben o preparan información en el Excel.</span>
+                        </div>
+                        <span class="zone-badge escritura">ESCRITURA</span>
+                    </div>
+                    <div class="zone-cards">
+                        <div class="action-card action-card--sm" style="cursor:pointer" onclick="document.getElementById('modalIntroducirNotas').style.display='flex'">
+                            <div class="action-icon" style="background:rgba(37,99,235,0.1)">📝</div>
+                            <div>
+                                <strong>Introducir notas</strong>
+                                <span>Notas por actividad y unidad didáctica.</span>
+                            </div>
+                        </div>
+                        <a class="action-card action-card--sm" href="gestor-recuperaciones.html">
+                            <div class="action-icon" style="background:rgba(34,197,94,0.1)">🔄</div>
+                            <div>
+                                <strong>Recuperaciones</strong>
+                                <span>Notas de recuperación por evaluación y criterio.</span>
+                            </div>
+                        </a>
+                        <a class="action-card action-card--sm" href="diario.html">
+                            <div class="action-icon" style="background:rgba(21,128,61,0.1)">📓</div>
+                            <div>
+                                <strong>Diario</strong>
+                                <span>Registra las actividades de cada sesión.</span>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="side-panel" aria-labelledby="excel-title">
+                <div class="file-meta">
+                    <div class="section-kicker">📂 Archivo activo</div>
+                    <p class="file-name" id="activeFileName">Cargando...</p>
+                    <span class="file-mtime" id="fileActiveSince" style="display:none"></span>
+                    <div class="file-stats" id="fileStats" style="display:none">
+                        <span class="stat-pill" id="statAlumnos">👥 —</span>
+                        <span class="stat-pill" id="statUnidades">📚 —</span>
+                    </div>
+                </div>
+
+                <div class="file-actions">
+                    <button class="small-button" type="button" id="changeFileBtn">Cambiar archivo</button>
+                    <button class="small-button" type="button" id="refreshFileBtn" title="Recargar estado del archivo activo">Recargar estado</button>
+                    <button class="small-button" type="button" onclick="descargarPlantillaExcel()" title="Descarga una copia vacía de la plantilla Excel">📥 Descargar plantilla Excel</button>
+                </div>
+                <span class="file-mtime" id="fileVerifyState" style="display:none"></span>
+
+                <div>
+                    <div class="section-kicker" id="recentKicker" style="display:none">
+                        Recientes
+                        <button class="recent-clear-btn" type="button" id="clearAllRecentBtn" title="Limpiar historial" style="display:none">🗑️</button>
+                    </div>
+                    <div class="recent-list" id="recentFilesList"></div>
+                </div>
+
+            </aside>
+        </section>
+
+        <!-- CONSULTA: full-width -->
+        <section class="consulta-panel" aria-label="Consultar notas">
+            <div class="consulta-hdr">
+                <div>
+                    <div class="section-kicker">Consulta</div>
+                    <strong style="font-size:1rem;font-weight:700;color:var(--text)">Consultar notas e informes</strong>
+                    <span style="display:block;font-size:0.8rem;color:var(--muted)">Pantallas de solo lectura para revisar evaluación y progreso.</span>
+                </div>
+                <span class="zone-badge consulta">CONSULTA</span>
+            </div>
+            <div class="lcard-grid">
+                <a class="lcard" href="visor-notas.html" style="--ar:99;--ag:102;--ab:241">
+                    <div class="lcard-badge" style="background:var(--color-accent)">E</div>
+                    <strong>Evaluaciones</strong>
+                    <span>1ª, 2ª, 3ª EVA y nota final por alumno y CE.</span>
+                </a>
+                <a class="lcard" href="visor-unidades.html" style="--ar:8;--ag:145;--ab:178">
+                    <div class="lcard-badge" style="background:#0891b2">U</div>
+                    <strong>Por Unidad</strong>
+                    <span>Resumen de notas por unidad y criterio por alumno.</span>
+                </a>
+                <a class="lcard" href="informes.html" style="--ar:147;--ag:51;--ab:234">
+                    <div class="lcard-badge" style="background:#9333ea">I</div>
+                    <strong>Informes</strong>
+                    <span>Gráficos de evolución y vistas imprimibles.</span>
+                </a>
+                <a class="lcard" href="utilidades.html" style="--ar:5;--ag:150;--ab:105">
+                    <div class="lcard-badge" style="background:#059669">⏱</div>
+                    <strong>Utilidades</strong>
+                    <span>Temporizador, horario, alumno al azar y agrupaciones.</span>
+                </a>
+            </div>
+        </section>
+
+        <!-- ALERTAS: full-width -->
+        <div class="zone" id="alertasPanel" style="display:none;margin-top:0;margin-bottom:22px" aria-label="Alertas de evaluación">
+            <div class="zone-hdr">
+                <div class="zone-info">
+                    <div class="zone-kicker">Alertas</div>
+                    <strong class="zone-title">Alumnos en riesgo</strong>
+                </div>
+                <select class="alertas-eva-select" id="alertasEvaSelect" onchange="loadAlertas()">
+                    <option value="1">1ª EVA</option>
+                    <option value="2">2ª EVA</option>
+                    <option value="3">3ª EVA</option>
+                    <option value="final">Final</option>
+                </select>
+                <a href="visor-notas.html" style="font-size:0.78rem;color:var(--primary);font-weight:700;text-decoration:none;">Ver todos →</a>
+                <span class="zone-badge alerta">ALERTAS</span>
+            </div>
+            <div class="alertas-list" id="alertasList">
+                <span class="alertas-loading">Cargando...</span>
+            </div>
+        </div>
+
+        <section class="setup-panel" aria-labelledby="setup-title">
+            <div class="setup-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                <div>
+                    <div class="section-kicker">Inicio de curso</div>
+                    <h2 id="setup-title">Configuración inicial</h2>
+                    <p>Estas opciones se usan solo al preparar el módulo, por eso quedan como accesos secundarios.</p>
+                </div>
+                <button class="small-button" type="button" onclick="abrirModalImportar()" style="flex-shrink:0;">📥 Importar datos</button>
+            </div>
+
+            <div class="workflow" aria-label="Flujo recomendado">
+                <div class="step">
+                    <div class="step-number">👥</div>
+                    <h3>Preparar alumnos</h3>
+                    <p>Carga o actualiza la lista del grupo al principio del curso.</p>
+                    <a class="small-button" href="gestor-alumnos.html">Alumnos</a>
+                </div>
+                <div class="step">
+                    <div class="step-number">⚖️</div>
+                    <h3>Ajustar CE y Criterios</h3>
+                    <p>Revisa competencias específicas, criterios de evaluación y ponderaciones.</p>
+                    <a class="small-button" href="gestor-rraa-criterios.html">CE y Criterios</a>
+                </div>
+                <div class="step">
+                    <div class="step-number">📚</div>
+                    <h3>Planificar unidades</h3>
+                    <p>Ordena la programación al inicio y ajusta solo cambios puntuales.</p>
+                    <a class="small-button" href="gestor-unidades.html">Unidades</a>
+                </div>
+                <div class="step">
+                    <div class="step-number">📊</div>
+                    <h3>Instrumentos de evaluación</h3>
+                    <p>Configura los instrumentos de evaluación y sus pesos en la hoja PESOS.</p>
+                    <a class="small-button" href="gestor-instrumentos.html">Instrumentos</a>
+                </div>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <span>Gestor de Notas ESO</span>
+            <span>Aplicación local con Excel sincronizado</span>
+        </footer>
+    </main>
+
+    <!-- INPUT OCULTO PARA SELECCIONAR ARCHIVO FUENTE -->
+    <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" style="display:none" />
+
+    <!-- MODAL IMPORTAR -->
+    <div id="modalImportar" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:2000; align-items:center; justify-content:center;" onclick="cerrarModalImportar(event)">
+        <div style="background:white; border-radius:12px; padding:32px; max-width:720px; width:95%; box-shadow:0 20px 60px rgba(0,0,0,0.3); max-height:92vh; overflow-y:auto;" onclick="event.stopPropagation()">
+            <h2 style="font-size:1.4em; color:var(--color-accent-strong); margin-bottom:6px;">📥 Importar datos externos</h2>
+            <p style="color:#5f6f89; font-size:0.93em; margin-bottom:20px;">Coge datos de un CSV u otro Excel y los copia al libro activo. Selecciona el archivo fuente y qué secciones importar.</p>
+
+            <!-- Selector de archivo fuente -->
+            <div style="border:2px dashed #c7d2fe; border-radius:8px; padding:14px 16px; margin-bottom:18px; display:flex; align-items:center; gap:12px; background:#f8f9ff;">
+                <span style="font-size:1.5em;">📂</span>
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:600; font-size:0.93em; color:var(--color-accent-strong); margin-bottom:3px;">Archivo fuente</div>
+                    <div id="importSrcName" style="font-size:0.87em; color:#5f6f89; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Ningún archivo seleccionado</div>
+                </div>
+                <button type="button" onclick="seleccionarArchivoFuente()" style="background:var(--color-accent); color:white; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.88em; flex-shrink:0;">Elegir…</button>
+            </div>
+
+            <!-- Qué importar -->
+            <div style="font-weight:700; font-size:0.88em; color:var(--color-accent); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">¿Qué importar?</div>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:18px;">
+                <label id="lblAlumnos" style="display:flex; align-items:center; gap:10px; padding:12px 14px; border:2px solid #e0e0e0; border-radius:8px; cursor:pointer;">
+                    <input type="checkbox" id="importAlumnos" style="width:17px;height:17px;accent-color:var(--color-accent);" checked />
+                    <div style="flex:1;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                            <strong style="font-size:0.95em;">👥 Alumnos</strong>
+                            <button type="button" onclick="descargarPlantilla('alumnos',event)" style="font-size:0.78em;padding:3px 8px;background:#f0f4ff;color:var(--color-accent-strong);border:1px solid #c7d2fe;border-radius:4px;cursor:pointer;white-space:nowrap;">📥 Plantilla</button>
+                        </div>
+                        <span style="font-size:0.85em;color:#5f6f89;">CSV o Excel. Sin cabecera (o con "Nombre"/"Alumno", se omite). Max 37 alumnos.</span>
+                        <div style="font-size:0.78em;color:#374151;background:#f5f5f5;border-radius:4px;padding:4px 8px;margin-top:5px;font-family:monospace;line-height:1.6;">
+                            1 columna: &nbsp;<em>Juan García López</em><br>
+                            2 columnas: <em>1;Juan García López</em>
+                        </div>
+                    </div>
+                </label>
+                <label id="lblCE" style="display:flex; align-items:center; gap:10px; padding:12px 14px; border:2px solid #e0e0e0; border-radius:8px; cursor:pointer;">
+                    <input type="checkbox" id="importCE" style="width:17px;height:17px;accent-color:var(--color-accent);" />
+                    <div style="flex:1;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                            <strong style="font-size:0.95em;">⚖️ CE y Criterios</strong>
+                            <button type="button" onclick="descargarPlantilla('ce',event)" style="font-size:0.78em;padding:3px 8px;background:#f0f4ff;color:var(--color-accent-strong);border:1px solid #c7d2fe;border-radius:4px;cursor:pointer;white-space:nowrap;">📥 Plantilla</button>
+                        </div>
+                        <span style="font-size:0.85em;color:#5f6f89;">CSV o Excel con hoja PESOS. Sin cabecera (o con "CE"/"Codigo", se omite).</span>
+                        <div style="font-size:0.78em;color:#374151;background:#f5f5f5;border-radius:4px;padding:4px 8px;margin-top:5px;font-family:monospace;line-height:1.6;">
+                            Formato A: <em>CE1;CR1.1;Descripción del criterio</em><br>
+                            Formato B: <em>CR1.1;Descripción del criterio</em> &nbsp;(CE se deduce del número)
+                        </div>
+                    </div>
+                </label>
+                <label id="lblInst" style="display:flex; align-items:center; gap:10px; padding:12px 14px; border:2px solid #e0e0e0; border-radius:8px; cursor:pointer;">
+                    <input type="checkbox" id="importInstrumentos" style="width:17px;height:17px;accent-color:var(--color-accent);" />
+                    <div style="flex:1;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                            <strong style="font-size:0.95em;">📊 Instrumentos de evaluación</strong>
+                            <button type="button" onclick="descargarPlantilla('instrumentos',event)" style="font-size:0.78em;padding:3px 8px;background:#f0f4ff;color:var(--color-accent-strong);border:1px solid #c7d2fe;border-radius:4px;cursor:pointer;white-space:nowrap;">📥 Plantilla</button>
+                        </div>
+                        <span style="font-size:0.85em;color:#5f6f89;">CSV o Excel (primera hoja). Sin cabecera (o con "Codigo"/"Abreviatura", se omite). Max 10.</span>
+                        <div style="font-size:0.78em;color:#374151;background:#f5f5f5;border-radius:4px;padding:4px 8px;margin-top:5px;font-family:monospace;line-height:1.6;">
+                            2 columnas: <em>PE;Prueba escrita</em><br>
+                            <em>TD;Trabajo en grupo</em>
+                        </div>
+                    </div>
+                </label>
+                <label id="lblUnidades" style="display:flex; align-items:center; gap:10px; padding:12px 14px; border:2px solid #e0e0e0; border-radius:8px; cursor:pointer;">
+                    <input type="checkbox" id="importUnidades" style="width:17px;height:17px;accent-color:var(--color-accent);" />
+                    <div style="flex:1;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                            <strong style="font-size:0.95em;">📚 Unidades didácticas</strong>
+                            <button type="button" onclick="descargarPlantilla('unidades',event)" style="font-size:0.78em;padding:3px 8px;background:#f0f4ff;color:var(--color-accent-strong);border:1px solid #c7d2fe;border-radius:4px;cursor:pointer;white-space:nowrap;">📥 Plantilla</button>
+                        </div>
+                        <span style="font-size:0.85em;color:#5f6f89;">CSV o Excel (primera hoja o hoja DATOS). Sin cabecera (o con "Codigo"/"Unidad", se omite). Max 15.</span>
+                        <div style="font-size:0.78em;color:#374151;background:#f5f5f5;border-radius:4px;padding:4px 8px;margin-top:5px;font-family:monospace;line-height:1.6;">
+                            3 columnas: <em>U1;Introducción a la asignatura;1ª</em><br>
+                            Evaluación: <em>1ª</em> / <em>2ª</em> / <em>3ª</em> &nbsp;(también acepta 1a, 2a, 3a)
+                        </div>
+                    </div>
+                </label>
+            </div>
+
+            <div id="importMsg" style="display:none; margin-bottom:14px; padding:11px 14px; border-radius:6px; font-size:0.91em; white-space:pre-line;"></div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button type="button" onclick="cerrarModalImportar()" style="background:#f0f0f0; color:#333; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; font-weight:600;">Cancelar</button>
+                <button type="button" id="btnImportar" onclick="ejecutarImportacion()" style="background:var(--color-accent); color:white; border:none; padding:10px 22px; border-radius:6px; cursor:pointer; font-weight:600;" disabled>Importar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app-bridge.js"></script>
+    <script>
+        const RECENT_KEY = "recentExcelFiles";
+        const LAST_VISIT_KEY = "lastQuickAccess";
+        const FILE_TS_KEY = "fileActiveTs";
+        const FILE_PATH_KEY = "fileActivePath";
+        const FILE_VERSION_KEY = "fileActiveVersion";
+        const MAX_RECENT = 6;
+
+        function getRecentFiles() {
+            try { return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]"); }
+            catch { return []; }
+        }
+
+        function saveRecentFile(filePath, fileName) {
+            const recent = getRecentFiles().filter((f) => f.path !== filePath);
+            recent.unshift({ path: filePath, name: fileName });
+            localStorage.setItem(RECENT_KEY, JSON.stringify(recent.slice(0, MAX_RECENT)));
+        }
+
+        function removeRecentFile(filePath) {
+            const recent = getRecentFiles().filter((f) => f.path !== filePath);
+            localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+            renderRecentFiles(null);
+        }
+
+        async function clearAllRecentFiles() {
+            const ok = window.appUx && window.appUx.confirm
+                ? await window.appUx.confirm("¿Deseas eliminar todos los archivos recientes?", {
+                    title: "Limpiar historial",
+                    confirmText: "Eliminar"
+                })
+                : confirm("¿Deseas eliminar todos los archivos recientes?");
+            if (ok) {
+                localStorage.setItem(RECENT_KEY, JSON.stringify([]));
+                renderRecentFiles(null);
+            }
+        }
+
+        async function verifyFileExists(filePath) {
+            if (!window.electronExcel) return true;
+            try {
+                return await window.electronExcel.verifyFileExists(filePath);
+            } catch {
+                return false;
+            }
+        }
+
+        async function renderRecentFiles(activeFilePath) {
+            const recent = getRecentFiles();
+            const list = document.getElementById("recentFilesList");
+            const kicker = document.getElementById("recentKicker");
+            const clearBtn = document.getElementById("clearAllRecentBtn");
+
+            if (!recent.length) {
+                list.innerHTML = `<span class="recent-empty">Ningún archivo abierto aún.</span>`;
+                kicker.style.display = "none";
+                clearBtn.style.display = "none";
+                return;
+            }
+
+            kicker.style.display = "";
+            clearBtn.style.display = recent.length > 1 ? "inline-flex" : "none";
+
+            // Filtrar archivos que existen, manteniendo orden y eliminando los que no
+            const validFiles = [];
+            const filesToRemove = [];
+
+            for (const f of recent) {
+                const exists = await verifyFileExists(f.path);
+                if (exists) {
+                    validFiles.push(f);
+                } else {
+                    filesToRemove.push(f.path);
+                }
+            }
+
+            // Actualizar localStorage si hay archivos que no existen
+            if (filesToRemove.length > 0) {
+                localStorage.setItem(RECENT_KEY, JSON.stringify(validFiles));
+            }
+
+            if (!validFiles.length) {
+                list.innerHTML = `<span class="recent-empty">Ningún archivo abierto aún.</span>`;
+                kicker.style.display = "none";
+                clearBtn.style.display = "none";
+                return;
+            }
+
+            list.innerHTML = validFiles.map((f) => `
+                <div class="recent-item${f.path === activeFilePath ? " active-file" : ""}"
+                     data-path="${escapeAttr(f.path)}" title="${escapeAttr(f.path)}">
+                    <div class="recent-item-content">
+                        <span class="recent-item-name">${escapeHtml(f.name)}</span>
+                    </div>
+                    <div class="recent-item-actions">
+                        <button class="recent-item-delete" type="button" title="Eliminar de recientes">✕</button>
+                        <span class="recent-item-arrow">→</span>
+                    </div>
+                </div>
+            `).join("");
+
+            list.querySelectorAll(".recent-item").forEach((item) => {
+                const deleteBtn = item.querySelector(".recent-item-delete");
+                const path = item.dataset.path;
+
+                // Click en el item = activar archivo
+                item.addEventListener("click", (e) => {
+                    if (e.target !== deleteBtn) {
+                        activateFile(path);
+                    }
+                });
+
+                // Click en el botón delete = eliminar
+                deleteBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    removeRecentFile(path);
+                });
+            });
+
+            clearBtn.onclick = (e) => {
+                e.stopPropagation();
+                clearAllRecentFiles();
+            };
+        }
+
+        async function activateFile(filePath) {
+            if (!window.electronExcel) return;
+            try {
+                const result = await window.electronExcel.setSelectedFile(filePath);
+                if (result) {
+                    const recent = getRecentFiles().find((f) => f.path === filePath);
+                    saveRecentFile(filePath, result.fileName || recent?.name || filePath.split(/[\\/]/).pop());
+                    setFileActive(result.fileName || filePath.split(/[\\/]/).pop(), filePath);
+                }
+            } catch (err) {
+                if (window.appUx) window.appUx.showStatus("No se pudo activar el archivo: " + err, "error", 6000);
+                else alert("No se pudo activar el archivo:\n" + err);
+            }
+        }
+
+        function setFileActive(fileName, filePath) {
+            document.getElementById("activeFileName").textContent = fileName;
+            localStorage.setItem(FILE_TS_KEY, Date.now().toString());
+            localStorage.setItem(FILE_PATH_KEY, filePath || "");
+            localStorage.setItem(FILE_VERSION_KEY, Date.now().toString());
+            refreshActiveSince();
+            renderRecentFiles(filePath);
+            loadFileStats();
+            loadAlertas();
+            refreshFileHealth(filePath);
+        }
+
+        function setNoActiveFile(text) {
+            document.getElementById("activeFileName").textContent = text || "Sin archivo seleccionado";
+            document.getElementById("fileActiveSince").style.display = "none";
+            const verifyEl = document.getElementById("fileVerifyState");
+            if (verifyEl) verifyEl.style.display = "none";
+            const statsEl = document.getElementById("fileStats");
+            if (statsEl) statsEl.style.display = "none";
+            const alertPanel = document.getElementById("alertasPanel");
+            if (alertPanel) alertPanel.style.display = "none";
+            localStorage.removeItem(FILE_PATH_KEY);
+            localStorage.setItem(FILE_VERSION_KEY, Date.now().toString());
+            renderRecentFiles(null);
+        }
+
+        async function refreshFileHealth(filePath) {
+            const verifyEl = document.getElementById("fileVerifyState");
+            if (!verifyEl || !filePath) {
+                if (verifyEl) verifyEl.style.display = "none";
+                return;
+            }
+            verifyEl.style.display = "";
+            verifyEl.style.color = "var(--muted)";
+            verifyEl.textContent = "Comprobando acceso al archivo...";
+            const exists = await verifyFileExists(filePath);
+            if (exists) {
+                verifyEl.style.color = "#166534";
+                verifyEl.textContent = "Archivo accesible";
+            } else {
+                verifyEl.style.color = "#b45309";
+                verifyEl.textContent = "Archivo no encontrado";
+            }
+        }
+
+        async function refreshCurrentFileState(showToast = false) {
+            if (!window.electronExcel) return;
+            try {
+                const result = await window.electronExcel.getSelectedFile();
+                if (!result || !result.filePath) {
+                    setNoActiveFile("Sin archivo seleccionado");
+                    return;
+                }
+                saveRecentFile(result.filePath, result.fileName);
+                setFileActive(result.fileName, result.filePath);
+                if (showToast && window.appUx) {
+                    window.appUx.showStatus("Estado del archivo actualizado", "success", 2500);
+                }
+            } catch (err) {
+                if (showToast) {
+                    if (window.appUx) window.appUx.showStatus("No se pudo recargar el estado: " + err, "error", 5000);
+                    else alert("No se pudo recargar el estado:\n" + err);
+                }
+            }
+        }
+
+        function refreshActiveSince() {
+            const el = document.getElementById("fileActiveSince");
+            if (!el) return;
+            const raw = localStorage.getItem(FILE_TS_KEY);
+            if (!raw) { el.style.display = "none"; return; }
+            const diffMin = Math.floor((Date.now() - parseInt(raw)) / 60000);
+            let text;
+            if (diffMin < 1) text = "Justo ahora";
+            else if (diffMin < 60) text = `Hace ${diffMin} min`;
+            else if (diffMin < 1440) text = `Hace ${Math.floor(diffMin / 60)} h`;
+            else text = new Date(parseInt(raw)).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+            el.textContent = `Activo: ${text}`;
+            el.style.display = "";
+        }
+
+        async function loadFileStats() {
+            if (!window.electronExcel) return;
+            try {
+                const [alumnos, unidades] = await Promise.all([
+                    window.electronExcel.loadAlumnos().catch(() => null),
+                    window.electronExcel.loadUnidades().catch(() => null),
+                ]);
+                const statsEl = document.getElementById("fileStats");
+                if (!statsEl) return;
+                if (alumnos) document.getElementById("statAlumnos").textContent = `👥 ${alumnos.length} alumnos`;
+                if (unidades) document.getElementById("statUnidades").textContent = `📚 ${unidades.filter(u => u && u.nombre).length} unidades`;
+                statsEl.style.display = "flex";
+            } catch {}
+        }
+
+        function saveLastVisit(href, label) {
+            localStorage.setItem(LAST_VISIT_KEY, JSON.stringify({ href, label, ts: Date.now() }));
+        }
+
+        function showContinueBanner() {
+            try {
+                const visit = JSON.parse(localStorage.getItem(LAST_VISIT_KEY) || "null");
+                if (!visit) return;
+                if (Date.now() - visit.ts > 7 * 24 * 60 * 60 * 1000) return;
+                const banner = document.getElementById("continueBanner");
+                const link = document.getElementById("continueLink");
+                link.href = visit.href;
+                link.textContent = `↩ Continuar: ${visit.label}`;
+                banner.style.display = "flex";
+            } catch {}
+        }
+
+        function initContinueBanner() {
+            showContinueBanner();
+            document.getElementById("continueDismiss").addEventListener("click", () => {
+                document.getElementById("continueBanner").style.display = "none";
+                localStorage.removeItem(LAST_VISIT_KEY);
+            });
+            document.querySelectorAll(".action-card").forEach((card) => {
+                card.addEventListener("click", () => {
+                    const label = card.querySelector("strong")?.textContent || "página";
+                    if (card.href) saveLastVisit(card.href, label);
+                });
+            });
+        }
+
+        async function loadAlertas() {
+            if (!window.electronExcel) return;
+            const panel = document.getElementById("alertasPanel");
+            const list = document.getElementById("alertasList");
+            const eva = document.getElementById("alertasEvaSelect").value;
+            list.innerHTML = '<span class="alertas-loading">Cargando...</span>';
+            try {
+                const data = await window.electronExcel.getNotasEvaluacion({ evaluacion: eva });
+                if (!data || !data.alumnos) { panel.style.display = "none"; return; }
+
+                const alertas = data.alumnos
+                    .map((a) => {
+                        const grades = (a.rraa || []).map((r) => r.nota).filter((v) => typeof v === "number" && v > 0);
+                        const minGrade = grades.length ? Math.min(...grades) : null;
+                        if (minGrade === null || minGrade >= 5) return null;
+                        return { nombre: a.nombre, min: minGrade, status: minGrade < 3 ? "bad" : "warn" };
+                    })
+                    .filter(Boolean)
+                    .sort((a, b) => a.min - b.min);
+
+                panel.style.display = "";
+                if (!alertas.length) {
+                    list.innerHTML = '<span class="alertas-ok">✓ Todos los alumnos aprueban todos los CE en esta evaluación</span>';
+                    return;
+                }
+                list.innerHTML = alertas.map((a) => `
+                    <a class="alerta-item ${a.status}" href="visor-notas.html" title="Mínimo CE: ${a.min.toFixed(2).replace(".", ",")}">
+                        <span class="alerta-dot ${a.status}"></span>
+                        ${escapeHtml(a.nombre)}
+                        <span style="opacity:0.7">${a.min.toFixed(1).replace(".", ",")}</span>
+                    </a>`).join("");
+            } catch {
+                panel.style.display = "none";
+            }
+        }
+
+        async function updateVersionBadge() {
+            const badge = document.getElementById("appVersionBadge");
+            if (!badge || !window.electronExcel || typeof window.electronExcel.getVersionInfo !== "function") return;
+            try {
+                const info = await window.electronExcel.getVersionInfo();
+                if (info && info.version) badge.textContent = `v${info.version}`;
+            } catch {}
+        }
+
+        function escapeHtml(str) {
+            return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        function escapeAttr(str) {
+            return String(str || "").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            await updateVersionBadge();
+            initContinueBanner();
+            refreshActiveSince();
+
+            if (!window.electronExcel) return;
+
+            const changeBtn = document.getElementById("changeFileBtn");
+            const refreshBtn = document.getElementById("refreshFileBtn");
+            changeBtn.addEventListener("click", async () => {
+                try {
+                    const result = await window.electronExcel.selectFile();
+                    if (result) {
+                        saveRecentFile(result.filePath, result.fileName);
+                        setFileActive(result.fileName, result.filePath);
+                    }
+                } catch (err) {
+                    if (window.appUx) window.appUx.showStatus("Error al seleccionar archivo: " + err, "error", 5000);
+                    else alert("Error al seleccionar archivo:\n" + err);
+                }
+            });
+            refreshBtn.addEventListener("click", () => refreshCurrentFileState(true));
+
+            window.addEventListener("focus", () => { refreshCurrentFileState(false); });
+            document.addEventListener("visibilitychange", () => {
+                if (!document.hidden) refreshCurrentFileState(false);
+            });
+
+            try {
+                const result = await window.electronExcel.getSelectedFile();
+                if (result) {
+                    saveRecentFile(result.filePath, result.fileName);
+                    setFileActive(result.fileName, result.filePath);
+                } else {
+                    setNoActiveFile("Sin archivo seleccionado");
+                }
+            } catch {
+                setNoActiveFile("Sin archivo");
+            }
+        });
+    </script>
+
+    <!-- XLSX para leer CSV / Excel fuente en el navegador -->
+    <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script>
+        // ===== PLANTILLAS DESCARGABLES =====
+        function descargarPlantilla(tipo, e) {
+            e.preventDefault(); e.stopPropagation();
+            let csv, nombre;
+            if (tipo === 'alumnos') {
+                csv = 'Nº;Nombre\n1;García López, Ana\n2;Martínez Ruiz, Carlos\n3;\n';
+                nombre = 'plantilla_alumnos.csv';
+            } else if (tipo === 'ce') {
+                csv = 'CE;Codigo;Descripcion\nCE1;CR1.1;Identifica y comprende los conceptos básicos\nCE1;CR1.2;Aplica los procedimientos de forma autónoma\nCE2;CR2.1;Analiza situaciones y propone soluciones\nCE2;CR2.2;Comunica resultados con claridad y precisión\n';
+                nombre = 'plantilla_ce_criterios.csv';
+            } else if (tipo === 'instrumentos') {
+                csv = 'Abreviatura;Nombre\nPE;Prueba escrita\nTD;Trabajo en grupo\nEX;Examen oral\nPR;Proyecto\nOB;Observación en clase\n';
+                nombre = 'plantilla_instrumentos.csv';
+            } else if (tipo === 'unidades') {
+                csv = 'Codigo;Nombre;Evaluacion\nU1;Introducción a la materia;1ª\nU2;Conceptos fundamentales;1ª\nU3;Aplicaciones prácticas;2ª\nU4;Proyecto integrador;3ª\n';
+                nombre = 'plantilla_unidades.csv';
+            } else { return; }
+            if (window.__TAURI__) {
+                window.__TAURI__.core.invoke('save_csv_template', { filename: nombre, content: csv });
+            } else {
+                const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = nombre;
+                document.body.appendChild(a); a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 10000);
+            }
+        }
+
+        function descargarPlantillaExcel() {
+            if (window.__TAURI__) {
+                window.__TAURI__.core.invoke('excel_download_template');
+            } else {
+                alert('Disponible solo en la app de escritorio.');
+            }
+        }
+
+        // ===== MODAL IMPORTAR =====
+        let importWorkbook = null;   // workbook del archivo fuente leído con XLSX.js
+
+        function abrirModalImportar() {
+            importWorkbook = null;
+            document.getElementById('importSrcName').textContent = 'Ningún archivo seleccionado';
+            document.getElementById('btnImportar').disabled = true;
+            document.getElementById('importMsg').style.display = 'none';
+            document.getElementById('importAlumnos').checked = true;
+            document.getElementById('importCE').checked = false;
+            document.getElementById('importInstrumentos').checked = false;
+            document.getElementById('importUnidades').checked = false;
+            document.getElementById('modalImportar').style.display = 'flex';
+        }
+
+        function cerrarModalImportar(e) {
+            if (!e || e.target === document.getElementById('modalImportar')) {
+                document.getElementById('modalImportar').style.display = 'none';
+            }
+        }
+
+        function mostrarImportMsg(texto, ok) {
+            const el = document.getElementById('importMsg');
+            el.textContent = texto;
+            el.style.display = 'block';
+            el.style.background = ok ? '#d4edda' : '#f8d7da';
+            el.style.color = ok ? '#155724' : '#721c24';
+            el.style.border = ok ? '1px solid #c3e6cb' : '1px solid #f5c6cb';
+        }
+
+        function seleccionarArchivoFuente() {
+            const fi = document.getElementById('importFileInput');
+            fi.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                fi.value = '';
+                document.getElementById('importSrcName').textContent = file.name;
+                document.getElementById('importMsg').style.display = 'none';
+
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        if (file.name.toLowerCase().endsWith('.csv')) {
+                            // CSV: creamos workbook sintético con hoja "DATOS"
+                            const text = new TextDecoder('utf-8').decode(ev.target.result);
+                            const ws = XLSX.read(text, { type: 'string' }).Sheets['Sheet1']
+                                    || XLSX.utils.aoa_to_sheet(
+                                           text.split('\n').map(l => l.split(';').map(c => c.trim()))
+                                       );
+                            importWorkbook = { SheetNames: ['DATOS'], Sheets: { DATOS: ws } };
+                        } else {
+                            importWorkbook = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
+                        }
+                        document.getElementById('btnImportar').disabled = false;
+                        mostrarImportMsg(`✅ Archivo leído: ${file.name}`, true);
+                    } catch(err) {
+                        mostrarImportMsg('❌ No se pudo leer el archivo: ' + err.message, false);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            };
+            fi.click();
+        }
+
+        async function ejecutarImportacion() {
+            if (!importWorkbook) {
+                mostrarImportMsg('Primero selecciona un archivo fuente.', false);
+                return;
+            }
+            if (!window.electronExcel) {
+                mostrarImportMsg('Solo disponible en modo Tauri (aplicación de escritorio).', false);
+                return;
+            }
+
+            const doAlumnos      = document.getElementById('importAlumnos').checked;
+            const doCE           = document.getElementById('importCE').checked;
+            const doInstrumentos = document.getElementById('importInstrumentos').checked;
+            const doUnidades     = document.getElementById('importUnidades').checked;
+
+            if (!doAlumnos && !doCE && !doInstrumentos && !doUnidades) {
+                mostrarImportMsg('Selecciona al menos una sección a importar.', false);
+                return;
+            }
+
+            document.getElementById('btnImportar').disabled = true;
+            const lineas = [];
+
+            // ── ALUMNOS ──────────────────────────────────────────────────────
+            // CSV simple: una columna con el nombre, una fila por alumno.
+            // También acepta dos columnas (nº;nombre) o Excel con hoja DATOS.
+            if (doAlumnos) {
+                try {
+                    const sheetName = importWorkbook.SheetNames.includes('DATOS')
+                        ? 'DATOS' : importWorkbook.SheetNames[0];
+                    const rows = XLSX.utils.sheet_to_json(
+                        importWorkbook.Sheets[sheetName], { header: 1 });
+
+                    const alumnos = [];
+                    for (const row of rows) {
+                        if (!row || row.length === 0) continue;
+                        const colA = String(row[0] || '').trim();
+                        const colB = String(row[1] || '').trim();
+                        // Saltar cabecera si existe
+                        if (colA.toLowerCase() === 'nombre' || colA.toLowerCase() === 'alumno') continue;
+                        // Una columna: nombre en col A
+                        // Dos columnas: nº en col A y nombre en col B
+                        const nombre = colB.length > 1 ? colB : colA;
+                        if (!nombre) continue;
+                        alumnos.push({ numero: alumnos.length + 1, nombre });
+                    }
+
+                    if (alumnos.length > 37) alumnos.length = 37;
+                    if (alumnos.length === 0) throw new Error('No se encontraron nombres en el archivo.');
+                    await window.electronExcel.saveAlumnos(alumnos);
+                    lineas.push(`✅ Alumnos: ${alumnos.length} importados`);
+                } catch(err) {
+                    lineas.push(`❌ Alumnos: ${err.message}`);
+                }
+            }
+
+            // ── CE Y CRITERIOS ───────────────────────────────────────────────
+            // CSV simple: columnas CE;Código;Descripción, una fila por criterio.
+            // Agrupa CE únicas automáticamente.
+            if (doCE) {
+                try {
+                    const sheetName = importWorkbook.SheetNames.includes('PESOS')
+                        ? 'PESOS' : importWorkbook.SheetNames[0];
+                    const rows = XLSX.utils.sheet_to_json(
+                        importWorkbook.Sheets[sheetName], { header: 1 });
+
+                    const ceMap = new Map(); // ceLabel → { numero, descripcion }
+                    const criterios = [];
+
+                    for (const row of rows) {
+                        if (!row || row.length < 2) continue;
+                        const colA = String(row[0] || '').trim(); // CE o código CR
+                        const colB = String(row[1] || '').trim(); // código CR o descripción
+                        const colC = String(row[2] || '').trim(); // descripción (si hay 3 cols)
+
+                        // Saltar cabecera
+                        if (colA.toLowerCase() === 'ce' || colA.toLowerCase() === 'codigo') continue;
+
+                        let ceLabel, crCodigo, crTexto;
+
+                        if (/^CE\d+$/i.test(colA) && /^CR\d+\.\d+$/i.test(colB)) {
+                            // Formato: CE1 ; CR1.1 ; descripción
+                            ceLabel  = colA.toUpperCase();
+                            crCodigo = colB.toUpperCase();
+                            crTexto  = colC;
+                        } else if (/^CR\d+\.\d+$/i.test(colA)) {
+                            // Formato: CR1.1 ; descripción
+                            crCodigo = colA.toUpperCase();
+                            crTexto  = colB;
+                            const ceNum = crCodigo.match(/^CR(\d+)/i)[1];
+                            ceLabel  = `CE${ceNum}`;
+                        } else {
+                            continue;
+                        }
+
+                        if (!ceMap.has(ceLabel)) {
+                            ceMap.set(ceLabel, {
+                                numero: ceMap.size + 1,
+                                descripcion: ceLabel,
+                                colIdx: ceMap.size
+                            });
+                        }
+                        const ce = ceMap.get(ceLabel);
+                        criterios.push({
+                            numero: criterios.length + 1,
+                            codigo: crCodigo, nombre: crCodigo,
+                            originalCodigo: crCodigo,
+                            raNumero: ce.numero,
+                            raDescripcion: ce.descripcion,
+                            texto: crTexto,
+                            colIdx: criterios.length,
+                            ponderacion: 0, ponderacionInstituto: 0, ponderacionEmpresa: 0
+                        });
+                    }
+
+                    const ceList = Array.from(ceMap.values());
+                    if (ceList.length === 0) throw new Error('No se encontraron CE ni criterios. Formato esperado: CE;Código;Descripción');
+
+                    // Ponderaciones vacías (el profesor las rellenará)
+                    const ponderacionesUnidad = Array.from({ length: 15 }, (_, i) => ({
+                        numero: i + 1, rowIdx: i + 4, nombre: '',
+                        ponderaciones: Object.fromEntries(criterios.map(c => [c.colIdx, { ponderacion: 0 }]))
+                    }));
+
+                    await window.electronExcel.saveRraaCriterios({ rraa: ceList, criterios, ponderacionesUnidad });
+                    lineas.push(`✅ CE: ${ceList.length} | Criterios: ${criterios.length} importados`);
+                } catch(err) {
+                    lineas.push(`❌ CE y Criterios: ${err.message}`);
+                }
+            }
+
+            // ── INSTRUMENTOS ─────────────────────────────────────────────────
+            // CSV simple: dos columnas — abreviatura;nombre, una fila por instrumento.
+            if (doInstrumentos) {
+                try {
+                    const sheetName = importWorkbook.SheetNames[0];
+                    const rows = XLSX.utils.sheet_to_json(
+                        importWorkbook.Sheets[sheetName], { header: 1 });
+
+                    const instrumentos = [];
+                    for (const row of rows) {
+                        if (!row || row.length < 2) continue;
+                        const codigo = String(row[0] || '').trim();
+                        const nombre = String(row[1] || '').trim();
+                        // Saltar cabecera
+                        if (codigo.toLowerCase() === 'codigo' || codigo.toLowerCase() === 'abreviatura') continue;
+                        if (!codigo && !nombre) continue;
+                        instrumentos.push({ codigo, nombre });
+                        if (instrumentos.length === 10) break; // máximo 10
+                    }
+
+                    if (instrumentos.length === 0) throw new Error('No se encontraron instrumentos. Formato esperado: abreviatura;nombre');
+                    await window.electronExcel.saveInstrumentos(instrumentos);
+                    lineas.push(`✅ Instrumentos: ${instrumentos.length} importados`);
+                } catch(err) {
+                    lineas.push(`❌ Instrumentos: ${err.message}`);
+                }
+            }
+
+            // ── UNIDADES ─────────────────────────────────────────────────────
+            // CSV/Excel: 3 columnas — código;nombre;evaluación (1ª/2ª/3ª). Max 15.
+            if (doUnidades) {
+                try {
+                    const sheetName = importWorkbook.SheetNames.includes('DATOS')
+                        ? 'DATOS' : importWorkbook.SheetNames[0];
+                    const rows = XLSX.utils.sheet_to_json(
+                        importWorkbook.Sheets[sheetName], { header: 1, defval: '' });
+
+                    const EVAL_MAP = { '1a': '1ª', '2a': '2ª', '3a': '3ª', '1ª': '1ª', '2ª': '2ª', '3ª': '3ª' };
+                    const unidades = [];
+
+                    for (const row of rows) {
+                        if (!row || row.length < 2) continue;
+                        const colA = String(row[0] || '').trim();
+                        const colB = String(row[1] || '').trim();
+                        const colC = String(row[2] || '').trim();
+                        // Saltar cabecera
+                        if (/^(codigo|unidad|u[.]?n|nombre)/i.test(colA)) continue;
+                        if (!colA && !colB) continue;
+                        const evaluacion = EVAL_MAP[colC.toLowerCase()] || colC || '';
+                        unidades.push({ codigo: colA, nombre: colB, evaluacion });
+                        if (unidades.length === 15) break;
+                    }
+
+                    if (unidades.length === 0) throw new Error('No se encontraron unidades. Formato: código;nombre;evaluación');
+                    await window.electronExcel.saveUnidades(unidades);
+                    lineas.push(`✅ Unidades: ${unidades.length} importadas`);
+                } catch(err) {
+                    lineas.push(`❌ Unidades: ${err.message}`);
+                }
+            }
+
+            mostrarImportMsg(lineas.join('\n'), !lineas.some(l => l.startsWith('❌')));
+            document.getElementById('btnImportar').disabled = false;
+        }
+    </script>
+
+<div id="modalIntroducirNotas" onclick="if(event.target===this)this.style.display='none'" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,0.5);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:white;border-radius:14px;padding:32px 28px;max-width:500px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+        <h2 style="margin:0 0 22px;font-size:1.1rem;color:var(--color-accent-strong);font-weight:800">Introducir notas</h2>
+        <div style="display:flex;flex-direction:column;gap:12px">
+            <a href="gestor-notas.html" style="display:flex;align-items:center;gap:16px;padding:16px 18px;border:1.5px solid #e0e7ff;border-radius:10px;text-decoration:none;color:inherit">
+                <span style="font-size:1.8rem;flex-shrink:0">📝</span>
+                <div><strong style="display:block;color:var(--color-accent-strong);font-size:0.95rem;margin-bottom:3px">Notas por unidad</strong><span style="font-size:0.82rem;color:#6b7280">Registra las notas de actividades por criterio y unidad</span></div>
+            </a>
+            <a href="gestor-recuperaciones.html" style="display:flex;align-items:center;gap:16px;padding:16px 18px;border:1.5px solid #d1fae5;border-radius:10px;text-decoration:none;color:inherit">
+                <span style="font-size:1.8rem;flex-shrink:0">🔄</span>
+                <div><strong style="display:block;color:var(--color-success);font-size:0.95rem;margin-bottom:3px">Recuperaciones</strong><span style="font-size:0.82rem;color:#6b7280">Introduce notas de recuperación por evaluación y criterio</span></div>
+            </a>
+        </div>
+        <button onclick="document.getElementById('modalIntroducirNotas').style.display='none'" style="display:block;margin-top:18px;width:100%;padding:10px;background:white;border:1px solid #d1d5db;border-radius:8px;color:#6b7280;font:inherit;font-size:0.88rem;cursor:pointer">Cerrar</button>
+    </div>
+</div>
+
+<div id="modalVerNotas" onclick="if(event.target===this)this.style.display='none'" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,0.5);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:white;border-radius:14px;padding:32px 28px;max-width:500px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+        <h2 style="margin:0 0 22px;font-size:1.1rem;color:var(--color-accent-strong);font-weight:800">Visualizar notas</h2>
+        <div style="display:flex;flex-direction:column;gap:12px">
+            <a href="visor-unidades.html" style="display:flex;align-items:center;gap:16px;padding:16px 18px;border:1.5px solid #e0e7ff;border-radius:10px;text-decoration:none;color:inherit">
+                <span style="font-size:1.8rem;flex-shrink:0">📊</span>
+                <div><strong style="display:block;color:var(--color-accent-strong);font-size:0.95rem;margin-bottom:3px">Ver por Unidad</strong><span style="font-size:0.82rem;color:#6b7280">Notas de cada alumno organizadas por unidad didáctica</span></div>
+            </a>
+            <a href="visor-notas.html" style="display:flex;align-items:center;gap:16px;padding:16px 18px;border:1.5px solid #e0e7ff;border-radius:10px;text-decoration:none;color:inherit">
+                <span style="font-size:1.8rem;flex-shrink:0">📋</span>
+                <div><strong style="display:block;color:var(--color-accent-strong);font-size:0.95rem;margin-bottom:3px">Ver por Evaluación</strong><span style="font-size:0.82rem;color:#6b7280">Resumen de notas por evaluación (1ª, 2ª, 3ª) y nota final</span></div>
+            </a>
+            <a href="informes.html" style="display:flex;align-items:center;gap:16px;padding:16px 18px;border:1.5px solid #e0e7ff;border-radius:10px;text-decoration:none;color:inherit">
+                <span style="font-size:1.8rem;flex-shrink:0">📁</span>
+                <div><strong style="display:block;color:var(--color-accent-strong);font-size:0.95rem;margin-bottom:3px">Ver por CE y Unidad</strong><span style="font-size:0.82rem;color:#6b7280">Competencias específicas y criterios desglosados por unidad</span></div>
+            </a>
+        </div>
+        <button onclick="document.getElementById('modalVerNotas').style.display='none'" style="display:block;margin-top:18px;width:100%;padding:10px;background:white;border:1px solid #d1d5db;border-radius:8px;color:#6b7280;font:inherit;font-size:0.88rem;cursor:pointer">Cerrar</button>
+    </div>
+</div>
+</body>
+</html>

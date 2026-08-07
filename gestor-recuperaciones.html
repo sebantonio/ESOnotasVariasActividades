@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recuperaciones por Unidad</title>
+    <script src="app-bridge.js"></script>
+    <link rel="stylesheet" href="ux-common.css">
+    <script src="ux-common.js" defer></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { min-height: 100vh; padding: 10px 12px 16px; font-family: var(--font-body); background: var(--color-paper); color: #1f2937; }
+        .container { max-width: 1440px; margin: 0 auto; background: #fff; border-radius: 10px; box-shadow: 0 14px 42px rgba(31,41,55,0.16); overflow: clip; }
+        thead th.th-nombre { position: sticky; left: 0; z-index: 35; background: #eef2ff; }
+        tbody td.td-nombre { position: sticky; left: 0; z-index: 7; background: #ffffff; box-shadow: 2px 0 4px rgba(0,0,0,0.08); }
+        tbody tr:hover td.td-nombre { background: #eef2ff; }
+        .page-nav { display: grid; grid-template-columns: auto minmax(260px,1fr) auto; align-items: center; gap: 12px; padding: 8px 14px; background: #f8f9ff; border-bottom: 1px solid #e5e7eb; }
+        .nav-group { display: flex; flex-wrap: wrap; gap: 10px; }
+        .page-nav > .nav-group:last-child { justify-content: flex-end; }
+        .nav-title { min-width: 0; }
+        .nav-title h1 { color: var(--color-accent-strong); font-size: 1.04rem; font-weight: 800; line-height: 1.1; }
+        #headerTitulo { font-size: 0.78rem; color: var(--color-ink-2); font-weight: 650; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .nav-button, .nav-link { display: inline-flex; align-items: center; min-height: 34px; padding: 6px 12px; border-radius: 7px; font-size: 0.88em; font-weight: 700; text-decoration: none; cursor: pointer; }
+        .nav-button { color: var(--color-accent); background: white; border: 2px solid var(--color-accent); }
+        .nav-link { color: white; background: var(--color-accent); border: 2px solid var(--color-accent); }
+        .header { display: none; padding: 28px 30px; color: white; background: var(--color-accent-strong); }
+        .header h1 { margin-bottom: 4px; font-size: 1.5rem; }
+        .toolbar { display: grid; grid-template-columns: auto minmax(170px,270px) minmax(190px,300px) auto minmax(170px,250px) auto minmax(170px,260px) auto; align-items: center; gap: 7px 10px; padding: 9px 16px; border-bottom: 1px solid #e5e7eb; background: #fafbff; }
+        .toolbar label { font-size: 0.82rem; font-weight: 700; color: #374151; white-space: nowrap; }
+        select, input[type=search] { width: 100%; min-height: 34px; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 7px; font: inherit; font-size: 0.9rem; background: #fff; }
+        select { min-width: 0; cursor: pointer; }
+        input[type=search] { min-width: 0; }
+        select:focus, input[type=search]:focus { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+        #btnSave { grid-column: 1; grid-row: 2; }
+        #saveStatus { grid-column: 2; grid-row: 2; }
+        #lastSync { grid-column: 3 / span 2; grid-row: 2; }
+        #pendientesBadge { grid-column: 5 / span 2; grid-row: 2; }
+        .toolbar > span:last-child { grid-column: 7 / span 2; grid-row: 2; justify-self: end; margin-left: 0 !important; }
+        .stats { display: flex; gap: 8px; padding: 8px 16px; background: #f8f9ff; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
+        .stat { display: inline-flex; align-items: baseline; gap: 6px; max-width: 290px; padding: 5px 10px; background: white; border: 1px solid #e5e7eb; border-left: 4px solid var(--color-accent); border-radius: 8px; }
+        .stat span { display: inline; font-size: 0.72rem; color: #6b7280; font-weight: 600; margin-bottom: 0; }
+        .stat strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.98rem; color: var(--color-accent); }
+        .message { padding: 8px 12px; border-radius: 7px; font-size: 0.86rem; margin: 8px 16px; display: none; }
+        .message.show { display: block; }
+        .message.info { background: #eff6ff; color: #1d4ed8; }
+        .message.success { background: #f0fdf4; color: #166534; }
+        .message.error { background: #fef2f2; color: #991b1b; }
+        .table-container { position: relative; overflow: auto; max-height: calc(100vh - 255px); margin: 0 16px 16px; padding: 0; background: #fff; }
+        table { table-layout: auto; width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.88rem; }
+        thead th { position: sticky; top: 0; z-index: 30; background: #eef2ff; color: var(--color-accent-strong); font-weight: 800; padding: 8px 6px; text-align: center; border-bottom: 2px solid #c7d2fe; white-space: nowrap; vertical-align: bottom; background-clip: padding-box; box-shadow: 0 1px 0 #c7d2fe; }
+        thead tr:nth-child(2) th { top: var(--sticky-head-row-1, 34px); z-index: 29; }
+        thead th.th-nombre { text-align: left; width: 210px; padding-left: 12px; }
+        tbody tr:nth-child(even) { background: #fafafa; }
+        tbody tr:hover { background: #eef2ff; }
+        tbody td { padding: 7px 6px; border-bottom: 1px solid #f0f0f0; text-align: center; }
+        tbody td.td-nombre { text-align: left; padding-left: 12px; font-weight: 600; }
+        .grade { display: inline-block; padding: 3px 8px; border-radius: 5px; font-weight: 700; font-size: 0.88rem; min-width: 42px; }
+        .grade-ok   { background: #dcfce7; color: #166534; }
+        .grade-warn { background: #fef3c7; color: #92400e; }
+        .grade-bad  { background: #fee2e2; color: #991b1b; }
+        .grade-empty{ background: #f3f4f6; color: #9ca3af; }
+        .rec-input.rec-pending { background: #fff7ed !important; border: 1.5px dashed #f59e0b !important; box-shadow: 0 0 0 2px rgba(245,158,11,0.18) !important; }
+        .rec-input.rec-pending::placeholder { color: #f59e0b; font-weight: 700; }
+        .th-ce-group { font-size: 0.78em; font-weight: 800; text-align: center; padding: 4px 6px; }
+        .th-ce-nota  { font-size: 0.72em; font-weight: 800; }
+        .th-rec { font-size: 0.68em; color: #92400e; font-weight: 700; background: #fef3c7 !important; }
+        .td-rec { background: #fffbeb; }
+        .rec-input { width: 44px; min-height: 30px; padding: 2px 4px; border: 1px solid #d1d5db; border-radius: 4px; text-align: center; font-size: 0.85rem; background: #fffef0; font-family: inherit; }
+        .rec-input:focus { outline: 2px solid #f59e0b; background: white; border-color: #f59e0b; }
+        .rec-input.dirty-rec { background: #fff7ed; border-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.15); }
+        .rec-input.invalid-rec { background: #fff1f2; border-color: #dc2626; box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.16); }
+        .rec-input.saved-rec { background: #ecfdf5; border-color: #22c55e; box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.14); }
+        .btn-save { padding: 7px 18px; border: 2px solid #16a34a; border-radius: 7px; background: #16a34a; color: white; font-weight: 700; font-size: 0.92em; cursor: pointer; white-space: nowrap; }
+        .btn-save:hover { background: #15803d; border-color: #15803d; }
+        .btn-save:disabled { opacity: 0.55; cursor: default; }
+        .density-toggle, .ce-toggle-all { min-height: 30px; padding: 5px 10px; font-size: 0.82rem; }
+        .ce-toggle { min-height: 24px; padding: 2px 8px; border: 1px solid #cbd5e1; border-radius: 999px; background: #fff; color: #334155; font-size: 0.74rem; font-weight: 850; cursor: pointer; }
+        .ce-toggle:hover { border-color: var(--color-accent); color: var(--color-accent-strong); background: #eef2ff; }
+        body.compact-mode .table-container { max-height: calc(100vh - 225px); }
+        body.compact-mode thead th { padding: 5px 4px !important; font-size: 0.72rem !important; }
+        body.compact-mode thead tr:nth-child(2) th { top: var(--sticky-head-row-1, 28px); }
+        body.compact-mode tbody td { padding: 4px 5px !important; }
+        body.compact-mode .grade { padding: 2px 6px; font-size: 0.78rem; }
+        body.compact-mode .rec-input { width: 38px; min-height: 26px; font-size: 0.78rem; }
+        tr.row-active > td { background-color: #ecfeff !important; }
+        td.col-active, th.col-active { box-shadow: inset 0 0 0 9999px rgba(14, 165, 233, 0.08); }
+        .active-cell { outline: 2px solid #0ea5e9; outline-offset: -2px; }
+        .table-status-bar { position: fixed; left: 16px; right: 16px; bottom: 12px; z-index: 920; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid #dbe4f0; border-radius: 8px; background: rgba(255,255,255,0.96); box-shadow: 0 14px 34px rgba(31,41,55,0.16); backdrop-filter: blur(8px); }
+        .status-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+        .status-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 4px 9px; border: 1px solid #e0e7ff; border-radius: 999px; background: #f8fafc; color: #475569; font-size: 0.8rem; font-weight: 650; white-space: nowrap; }
+        .status-chip strong { color: var(--color-accent-strong); font-weight: 850; }
+        .status-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+        .status-save-button { min-height: 38px; padding: 8px 16px; border-radius: 8px; background: #16a34a; border: 2px solid #15803d; color: white; font-weight: 800; box-shadow: 0 10px 26px rgba(22, 163, 74, 0.22); cursor: pointer; }
+        .status-save-button:hover { background: #15803d; }
+        .status-save-button:disabled { opacity: 0.55; cursor: default; }
+        .floating-save-button { position: fixed; right: 24px; bottom: 24px; z-index: 900; min-height: 46px; padding: 11px 18px; border-radius: 8px; background: #16a34a; border: 2px solid #15803d; color: white; font-weight: 800; box-shadow: 0 14px 34px rgba(22, 163, 74, 0.28); cursor: pointer; }
+        .floating-save-button:hover { background: #15803d; }
+        .floating-save-button:disabled { opacity: 0.55; cursor: default; }
+        .save-status { font-size: 0.78em; color: #6b7280; }
+        .pag-btn { padding: 4px 10px; border: 1px solid #d1d5db; border-radius: 6px; background: white; cursor: pointer; font-size: 1rem; font-weight: 700; line-height: 1; }
+        .pag-btn:disabled { opacity: 0.4; cursor: default; }
+        .pag-btn:not(:disabled):hover { background: #eef2ff; border-color: var(--color-accent); color: var(--color-accent-strong); }
+        .empty-msg { padding: 40px; text-align: center; color: #9ca3af; font-style: italic; }
+        .pagination { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-top: 1px solid #e5e7eb; background: #fafbff; }
+        .pagination button { padding: 6px 14px; border: 1px solid #d1d5db; border-radius: 6px; background: white; cursor: pointer; font-size: 0.88rem; font-weight: 600; }
+        .pagination button:disabled { opacity: 0.4; cursor: default; }
+        .pagination button:not(:disabled):hover { background: #eef2ff; border-color: var(--color-accent); color: var(--color-accent-strong); }
+        .pagination .page-info { font-size: 0.88rem; color: #374151; }
+        .per-page { min-width: auto !important; padding: 6px 10px; font-size: 0.88rem; }
+        @media (max-width: 1040px) {
+            .page-nav { grid-template-columns: 1fr; align-items: stretch; }
+            .toolbar { grid-template-columns: 1fr; }
+            #btnSave,
+            #saveStatus,
+            #lastSync,
+            #pendientesBadge,
+            .toolbar > span:last-child {
+                grid-column: auto;
+                grid-row: auto;
+                justify-self: stretch;
+            }
+            .toolbar > span:last-child {
+                justify-content: flex-start;
+            }
+        }
+    </style>
+</head>
+<body class="ux-app-shell ux-page-gestor-recuperaciones">
+<div class="container">
+    <nav class="page-nav">
+        <div class="nav-group">
+            <button class="nav-button" type="button" onclick="window.history.back()">Atras</button>
+            <a class="nav-link" href="index.html">Inicio</a>
+        </div>
+        <div class="nav-title">
+            <h1>Introducir Recuperaciones</h1>
+            <div id="headerTitulo"></div>
+        </div>
+        <div class="nav-group">
+            <a class="nav-link" href="gestor-notas.html">Introducir notas</a>
+            <a class="nav-link" href="visor-notas.html">Ver evaluaciones</a>
+            <a class="nav-link" href="visor-unidades.html">Por Unidad</a>
+        </div>
+    </nav>
+
+    <header class="header">
+        <h1>Introducir Recuperaciones</h1>
+    </header>
+
+    <div class="toolbar">
+        <label for="unidadSelect">Unidad:</label>
+        <select id="unidadSelect"></select>
+        <span style="font-size:0.8rem;color:#6b7280;max-width:340px;line-height:1.3;">La recuperación se guarda en la hoja de la unidad; la evaluación se recalcula al abrir el Excel.</span>
+        <label for="alumnoSelect">Alumno:</label>
+        <select id="alumnoSelect"><option value="">— Todos —</option></select>
+        <button class="pag-btn" id="btnRefresh" type="button" title="Recargar unidad actual">Recargar</button>
+        <button id="btnSave" class="btn-save" onclick="saveAllRec()">Guardar</button>
+        <button class="pag-btn" id="btnResyncEval" type="button" onclick="resyncEvalActual()" title="Reenvía todas las notas/Rec ya guardados de esta unidad a las hojas de evaluación (por si quedaron desincronizadas)">🔄 Resincronizar evaluación</button>
+        <span id="saveStatus" class="save-status"></span>
+        <span id="lastSync" class="save-status">Sin sincronizar</span>
+        <span id="pendientesBadge" style="padding:4px 10px;border-radius:6px;font-size:0.82rem;font-weight:700;display:inline-block;background:#f3f4f6;color:#9ca3af;transition:all 0.3s"></span>
+        <span style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0;">
+            <button class="pag-btn density-toggle" id="densityToggleButton" type="button">Compacto</button>
+            <button class="pag-btn ce-toggle-all" id="ceToggleAllButton" type="button">Plegar CE</button>
+            <button class="pag-btn" id="btnPrevTop" onclick="changePage(-1)" disabled>&#8249;</button>
+            <span id="pageInfoTop" style="font-size:0.82rem;color:#374151;white-space:nowrap;"></span>
+            <button class="pag-btn" id="btnNextTop" onclick="changePage(1)">&#8250;</button>
+            <select id="perPageSelectTop" class="per-page" onchange="changePerPage(this.value)">
+                <option value="10">10</option>
+                <option value="15" selected>15</option>
+                <option value="20">20</option>
+                <option value="30">30</option>
+            </select>
+        </span>
+    </div>
+
+    <div class="stats">
+        <div class="stat"><span>Archivo</span><strong id="statArchivo">-</strong></div>
+        <div class="stat"><span>Alumnos</span><strong id="statAlumnos">0</strong></div>
+        <div class="stat"><span>Aprobados</span><strong id="statAprobados">0</strong></div>
+        <div class="stat"><span>Suspensos</span><strong id="statSuspensos">0</strong></div>
+        <div class="stat"><span>Media</span><strong id="statMedia">-</strong></div>
+    </div>
+
+    <div id="message" class="message"></div>
+
+    <div class="table-container">
+        <table id="notasTable">
+            <thead id="notasHead"></thead>
+            <tbody id="notasBody"></tbody>
+        </table>
+    </div>
+
+    <div class="pagination">
+        <button id="btnPrev" onclick="changePage(-1)" disabled>&#8249; Anterior</button>
+        <span class="page-info" id="pageInfo"></span>
+        <button id="btnNext" onclick="changePage(1)">Siguiente &#8250;</button>
+        <label for="perPageSelect" style="margin-left:auto;font-size:0.88rem;font-weight:600;color:#374151;">Por página:</label>
+        <select id="perPageSelect" class="per-page" onchange="changePerPage(this.value)">
+            <option value="10">10</option>
+            <option value="15" selected>15</option>
+            <option value="20">20</option>
+            <option value="30">30</option>
+        </select>
+    </div>
+</div>
+
+<button class="floating-save-button" id="btnSaveFloating" type="button" onclick="saveAllRec()">Guardar</button>
+
+<script>
+    const unidadSelect    = document.getElementById("unidadSelect");
+    const alumnoSelect    = document.getElementById("alumnoSelect");
+    const notasHead       = document.getElementById("notasHead");
+    const notasBody       = document.getElementById("notasBody");
+    const messageEl       = document.getElementById("message");
+    const pageInfoEl      = document.getElementById("pageInfo");
+    const btnPrev         = document.getElementById("btnPrev");
+    const btnNext         = document.getElementById("btnNext");
+    const perPageSelect   = document.getElementById("perPageSelect");
+    const headerTitulo    = document.getElementById("headerTitulo");
+    const btnRefresh      = document.getElementById("btnRefresh");
+    const lastSyncEl      = document.getElementById("lastSync");
+    const btnSaveFloating = document.getElementById("btnSaveFloating");
+    const densityToggleButton = document.getElementById("densityToggleButton");
+    const ceToggleAllButton = document.getElementById("ceToggleAllButton");
+    const statusFiltered = document.getElementById("statusFiltered");
+    const statusPendingRec = document.getElementById("statusPendingRec");
+    const statusDirtyRec = document.getElementById("statusDirtyRec");
+    const statusSync = document.getElementById("statusSync");
+    const DENSITY_PREFS_KEY = "recuperacionesDensity";
+    const COLLAPSED_CE_KEY = "recuperacionesCollapsedCeV2";
+
+    let currentState = null;
+    let currentPage  = 0;
+    let perPage      = 15;
+    let collapsedCeSet = null;
+
+    const CE_COLORS = [
+        { bg: "#eef2ff", fg: "var(--color-accent-strong)", border: "#818cf8", notaBg: "#e0e7ff" },
+        { bg: "#fdf4ff", fg: "#7e22ce", border: "#c084fc", notaBg: "#f3e8ff" },
+        { bg: "#fff7ed", fg: "#9a3412", border: "#fb923c", notaBg: "#ffedd5" },
+        { bg: "#f0fdf4", fg: "#166534", border: "#4ade80", notaBg: "#dcfce7" },
+        { bg: "#fff1f2", fg: "#9f1239", border: "#fb7185", notaBg: "#ffe4e6" },
+        { bg: "#f0f9ff", fg: "#075985", border: "#38bdf8", notaBg: "#e0f2fe" },
+    ];
+
+    function showMessage(text, type) {
+        const pretty = (type === "error" && window.appUx && window.appUx.hintError)
+            ? window.appUx.hintError(text)
+            : text;
+        messageEl.textContent = pretty;
+        messageEl.className = "message " + type + " show";
+    }
+
+    function formatNote(display) {
+        if (!display && display !== 0) return "";
+        const s = String(display).trim();
+        if (s === "") return "";
+        const n = parseFloat(s.replace(",", "."));
+        if (isNaN(n)) return s;
+        return n.toFixed(2).replace(".", ",");
+    }
+
+    function gradeClass(display) {
+        if (!display || display === "") return "grade-empty";
+        const n = parseFloat(String(display).replace(",", "."));
+        if (isNaN(n) || n === 0) return "grade-empty";
+        if (n >= 7) return "grade-ok";
+        if (n >= 5) return "grade-warn";
+        return "grade-bad";
+    }
+
+    function escapeHtml(s) {
+        return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function normalize(s) {
+        return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+    }
+
+    // Serializa todas las escrituras al Excel: si el usuario tabula rapido entre celdas,
+    // varios guardados podrian solaparse y escribir el mismo archivo a la vez.
+    let saveQueue = Promise.resolve();
+    function queuedSaveNotasUnidad(payload) {
+        const run = () => window.electronExcel.saveNotasUnidad(payload);
+        const result = saveQueue.then(run, run);
+        saveQueue = result.then(() => {}, () => {});
+        return result;
+    }
+
+    let savingAll = false;
+    let autoSaveTimer = null;
+    let _hayPendientes = false;
+    const _BASE_TITLE = document.title;
+
+    window.addEventListener('beforeunload', (e) => {
+        if (_hayPendientes) {
+            e.preventDefault();
+            const pending = document.querySelectorAll('.rec-input.dirty-rec').length;
+            e.returnValue = pending > 0
+                ? `Hay ${pending} recuperación(es) pendiente(s) de guardar.`
+                : 'Hay cambios pendientes de guardar.';
+        }
+    });
+
+    function parseNote(v) {
+        if (v === null || v === undefined || v === '') return null;
+        const n = parseFloat(String(v).replace(',', '.'));
+        return isNaN(n) ? null : n;
+    }
+
+    function numberFrom(value) {
+        if (value === null || value === undefined || value === "") return 0;
+        if (typeof value === "number") return value;
+        const n = parseFloat(String(value).trim().replace("%", "").replace(",", "."));
+        return isNaN(n) ? 0 : n;
+    }
+
+    function getIncludedCriteria(criterios) {
+        return (criterios || []).filter((cr) => numberFrom(cr.ponderacion) > 0);
+    }
+
+    function getCeNum(codigo) {
+        const m = /^CR(\d+)\./i.exec(codigo || "");
+        return m ? m[1] : "?";
+    }
+
+    function applyDensityPreference() {
+        const compact = localStorage.getItem(DENSITY_PREFS_KEY) === "compact";
+        document.body.classList.toggle("compact-mode", compact);
+        if (densityToggleButton) densityToggleButton.textContent = compact ? "Amplio" : "Compacto";
+        refreshStickyHeaderOffset();
+    }
+
+    function toggleDensityMode() {
+        const compact = !document.body.classList.contains("compact-mode");
+        localStorage.setItem(DENSITY_PREFS_KEY, compact ? "compact" : "wide");
+        applyDensityPreference();
+    }
+
+    function refreshStickyHeaderOffset() {
+        requestAnimationFrame(() => {
+            const row = notasHead?.querySelector("tr:first-child");
+            const anchor = row?.querySelector("th:not([rowspan])") || row;
+            const height = anchor ? Math.ceil(anchor.getBoundingClientRect().height) : 34;
+            document.documentElement.style.setProperty("--sticky-head-row-1", `${height}px`);
+        });
+    }
+
+    function ceGroupKey(group) {
+        return String(group.key);
+    }
+
+    function getCurrentCeGroups() {
+        const data = currentState;
+        if (!data) return [];
+        const criterios = getIncludedCriteria(data.criterios || []);
+        const map = {};
+        const groups = [];
+        criterios.forEach((cr) => {
+            const key = getCeNum(cr.codigo);
+            if (!map[key]) { map[key] = { key, criterios: [] }; groups.push(map[key]); }
+            map[key].criterios.push(cr);
+        });
+        groups.sort((a, b) => (Number(a.key) || 0) - (Number(b.key) || 0));
+        groups.forEach((g, i) => { g.color = CE_COLORS[i % CE_COLORS.length]; });
+        return groups;
+    }
+
+    function ensureCollapsedCePrefs(groups) {
+        if (collapsedCeSet) return;
+        try {
+            const saved = JSON.parse(localStorage.getItem(COLLAPSED_CE_KEY) || "null");
+            collapsedCeSet = Array.isArray(saved)
+                ? new Set(saved.map(String))
+                : new Set();
+        } catch {
+            collapsedCeSet = new Set();
+        }
+    }
+
+    function saveCollapsedCePrefs() {
+        try {
+            localStorage.setItem(COLLAPSED_CE_KEY, JSON.stringify(Array.from(collapsedCeSet || [])));
+        } catch {}
+    }
+
+    function syncVisibleRecInputsToState() {
+        if (!currentState) return;
+        const inputs = document.querySelectorAll('.rec-input');
+        const affected = new Set();
+        for (const inp of inputs) {
+            const rowIdx = parseInt(inp.dataset.row, 10);
+            const colIdx = parseInt(inp.dataset.col, 10);
+            if (isNaN(rowIdx) || isNaN(colIdx)) continue;
+            const alumno = (currentState.alumnos || []).find(a => a.rowIdx === rowIdx);
+            if (!alumno) continue;
+            const cr = (alumno.crNotas || []).find(c => Number(c.colIdx) === colIdx);
+            if (cr) cr.recDisplay = inp.value.trim();
+            affected.add(rowIdx);
+        }
+        affected.forEach((rowIdx) => {
+            const alumno = (currentState.alumnos || []).find(a => a.rowIdx === rowIdx);
+            if (alumno) recomputeAlumno(alumno);
+        });
+    }
+
+    function toggleCeGroup(key) {
+        syncVisibleRecInputsToState();
+        if (!collapsedCeSet) collapsedCeSet = new Set();
+        if (collapsedCeSet.has(key)) collapsedCeSet.delete(key);
+        else collapsedCeSet.add(key);
+        saveCollapsedCePrefs();
+        renderTable();
+    }
+
+    function toggleAllCeGroups() {
+        syncVisibleRecInputsToState();
+        const groups = getCurrentCeGroups();
+        ensureCollapsedCePrefs(groups);
+        const allCollapsed = groups.length > 0 && groups.every((group) => collapsedCeSet.has(ceGroupKey(group)));
+        collapsedCeSet = allCollapsed ? new Set() : new Set(groups.map(ceGroupKey));
+        saveCollapsedCePrefs();
+        renderTable();
+    }
+
+    function getFilteredAlumnos() {
+        const data = currentState;
+        if (!data) return [];
+        const filtroAlumno = alumnoSelect.value;
+        return (data.alumnos || []).filter(a => !filtroAlumno || a.nombre === filtroAlumno);
+    }
+
+    function countPendingRecoveries() {
+        if (!currentState) return 0;
+        const criterios = getIncludedCriteria(currentState.criterios || []);
+        let total = 0;
+        (currentState.alumnos || []).forEach((alumno) => {
+            criterios.forEach((cr) => {
+                const crVal = (alumno.crNotas || []).find((v) => Number(v.colIdx) === Number(cr.colIdx));
+                const crNota = crVal ? (parseFloat(String(crVal.display || crVal.nota || "").replace(",", ".")) || 0) : 0;
+                const recRaw = crVal && crVal.recDisplay ? String(crVal.recDisplay).trim() : "";
+                if (crNota > 0 && crNota < 5 && recRaw === "") total++;
+            });
+        });
+        return total;
+    }
+
+    function updateStatusBar(filteredCount, ceGroups) {
+        const groups = ceGroups || getCurrentCeGroups();
+        if (groups.length && !collapsedCeSet) ensureCollapsedCePrefs(groups);
+        const openCount = groups.filter((group) => !collapsedCeSet?.has(ceGroupKey(group))).length;
+        if (statusFiltered) statusFiltered.textContent = String(filteredCount ?? getFilteredAlumnos().length);
+        if (statusPendingRec) statusPendingRec.textContent = String(countPendingRecoveries());
+        if (statusDirtyRec) statusDirtyRec.textContent = String(document.querySelectorAll(".rec-input.dirty-rec").length);
+        if (statusSync) statusSync.textContent = lastSyncEl?.textContent || "Sin sincronizar";
+        if (ceToggleAllButton) ceToggleAllButton.textContent = openCount ? "Plegar CE" : "Abrir CE";
+    }
+
+    function clearActiveCellHighlight() {
+        document.querySelectorAll(".row-active, .col-active, .active-cell").forEach((el) => {
+            el.classList.remove("row-active", "col-active", "active-cell");
+        });
+    }
+
+    function highlightActiveCell(target) {
+        clearActiveCellHighlight();
+        const cell = target.closest("td");
+        const row = target.closest("tr");
+        const colKey = target.dataset.colKey || target.dataset.col || cell?.dataset.colKey;
+        if (row) row.classList.add("row-active");
+        if (cell) cell.classList.add("active-cell");
+        if (colKey) {
+            document.querySelectorAll("[data-col-key]").forEach((el) => {
+                if (el.dataset.colKey === String(colKey)) el.classList.add("col-active");
+            });
+        }
+    }
+
+    function recomputeAlumno(alumno) {
+        const ceGroups = getCurrentCeGroups();
+        alumno.ceNotas = {};
+        for (const g of ceGroups) {
+            let wsum = 0, wtotal = 0;
+            for (const cr of g.criterios) {
+                const crData = (alumno.crNotas || []).find(v => Number(v.colIdx) === Number(cr.colIdx));
+                if (!crData) continue;
+                const rec  = parseNote(crData.recDisplay);
+                const base = parseNote(crData.nota) ?? parseNote(crData.display);
+                const eff  = (rec !== null && rec > 0) ? rec : base;
+                if (eff === null || eff <= 0) continue;
+                const p = parseNote(cr.ponderacion) || 1;
+                wsum += eff * p; wtotal += p;
+            }
+            if (wtotal > 0) {
+                const nota = wsum / wtotal;
+                alumno.ceNotas[g.key] = { nota, display: nota.toFixed(2).replace('.', ',') };
+            }
+        }
+    }
+
+    function updateAlumnoDOM(alumno) {
+        for (const key of Object.keys(alumno.ceNotas || {})) {
+            const ceTd = document.querySelector(`[data-ce="${alumno.rowIdx}-${key}"]`);
+            if (ceTd) {
+                const ceInfo = alumno.ceNotas[key];
+                const ceDisp = formatNote(ceInfo.display);
+                const ceCls  = gradeClass(ceInfo.display);
+                const span = ceTd.querySelector('span');
+                if (span) { span.className = `grade ${ceCls}`; span.textContent = ceDisp || "—"; }
+            }
+        }
+    }
+
+    function saveRecFromInput(input) {
+        if (savingAll) return;
+        const validation = validateRecValue(input.value);
+        input.classList.toggle('invalid-rec', validation.isInvalid);
+        input.title = validation.message || '';
+        if (validation.isInvalid) {
+            showMessage(validation.message, 'error');
+            return;
+        }
+        const rowIdx = parseInt(input.dataset.row, 10);
+        const colIdx = parseInt(input.dataset.col, 10);
+        if (isNaN(rowIdx) || isNaN(colIdx)) return;
+        const value = input.value.trim();
+        const codigo = input.dataset.codigo || String(colIdx);
+        queuedSaveNotasUnidad({
+            unidad: unidadSelect.value,
+            notas: [{ rowIdx, crNotas: { [codigo]: { colIdx, rec: value } } }],
+            syncEval: false,
+        }).then(() => {
+            markRecSaved(input);
+            input.classList.add('needs-eval-sync');
+            scheduleEvalSync(unidadSelect.value);
+            const alumno = (currentState.alumnos || []).find(a => a.rowIdx === rowIdx);
+            if (alumno) {
+                const cr = (alumno.crNotas || []).find(c => Number(c.colIdx) === colIdx);
+                if (cr) cr.recDisplay = value;
+                recomputeAlumno(alumno);
+                updateAlumnoDOM(alumno);
+                renderStats();
+            }
+            refreshPendingState();
+            updateStatusBar();
+        }).catch(e => showMessage("Error al guardar Rec: " + (e.message || e), "error"));
+    }
+
+    let evalSyncTimeout = null;
+    let evalSyncUnidad = null;
+
+    function scheduleEvalSync(unidad) {
+        evalSyncUnidad = unidad;
+        if (evalSyncTimeout) clearTimeout(evalSyncTimeout);
+        evalSyncTimeout = setTimeout(flushEvalSync, 1500);
+    }
+
+    async function flushEvalSync() {
+        evalSyncTimeout = null;
+        const unidad = evalSyncUnidad;
+        const allInputs = Array.from(document.querySelectorAll('.rec-input.needs-eval-sync'));
+        if (!allInputs.length || !unidad) return;
+        // Si el valor actual ya no es valido (el usuario lo cambio a algo fuera de
+        // rango tras el guardado que marco needs-eval-sync), no se manda al backend:
+        // se reintentara cuando vuelva a quedar valido y disparar un guardado.
+        const inputs = allInputs.filter((inp) => !validateRecValue(inp.value).isInvalid);
+        if (!inputs.length) return;
+        const notasByRow = new Map();
+        inputs.forEach((inp) => {
+            const rowIdx = parseInt(inp.dataset.row, 10);
+            const colIdx = parseInt(inp.dataset.col, 10);
+            if (isNaN(rowIdx) || isNaN(colIdx)) return;
+            const codigo = inp.dataset.codigo || String(colIdx);
+            if (!notasByRow.has(rowIdx)) notasByRow.set(rowIdx, {});
+            notasByRow.get(rowIdx)[codigo] = { colIdx, rec: inp.value.trim() };
+        });
+        const notas = Array.from(notasByRow.entries()).map(([rowIdx, crNotas]) => ({ rowIdx, crNotas }));
+        try {
+            await queuedSaveNotasUnidad({ unidad, notas });
+            inputs.forEach((inp) => inp.classList.remove('needs-eval-sync'));
+        } catch (e) {
+            showMessage("Error al sincronizar evaluaciones: " + (e.message || e), "error");
+        }
+    }
+
+    async function saveAllRec() {
+        if (savingAll) return;
+        const inputs = document.querySelectorAll('.rec-input.dirty-rec');
+        if (!inputs.length) return;
+        const invalidInputs = Array.from(inputs).filter(inp => validateRecValue(inp.value).isInvalid);
+        if (invalidInputs.length) {
+            invalidInputs.forEach(inp => {
+                const validation = validateRecValue(inp.value);
+                inp.classList.add('invalid-rec');
+                inp.title = validation.message;
+            });
+            showMessage(`No se puede guardar: hay ${invalidInputs.length} recuperacion(es) fuera de 0-10.`, 'error');
+            invalidInputs[0].focus();
+            return false;
+        }
+        const changes = [];
+        for (const inp of inputs) {
+            const rowIdx = parseInt(inp.dataset.row, 10);
+            const colIdx = parseInt(inp.dataset.col, 10);
+            if (!isNaN(rowIdx) && !isNaN(colIdx)) {
+                changes.push({ rowIdx, colIdx, codigo: inp.dataset.codigo || String(colIdx), value: inp.value.trim() });
+            }
+        }
+        if (!changes.length) return;
+        savingAll = true;
+        const btn = document.getElementById('btnSave');
+        const status = document.getElementById('saveStatus');
+        if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+        if (btnSaveFloating) { btnSaveFloating.disabled = true; btnSaveFloating.textContent = 'Guardando...'; }
+        try {
+            const notasByRow = new Map();
+            for (const ch of changes) {
+                if (!notasByRow.has(ch.rowIdx)) notasByRow.set(ch.rowIdx, {});
+                notasByRow.get(ch.rowIdx)[ch.codigo] = { colIdx: ch.colIdx, rec: ch.value };
+            }
+            const notas = Array.from(notasByRow.entries()).map(([rowIdx, crNotas]) => ({ rowIdx, crNotas }));
+            await queuedSaveNotasUnidad({ unidad: unidadSelect.value, notas });
+            for (const ch of changes) {
+                const alumno = (currentState.alumnos || []).find(a => a.rowIdx === ch.rowIdx);
+                if (!alumno) continue;
+                const cr = (alumno.crNotas || []).find(c => Number(c.colIdx) === ch.colIdx);
+                if (cr) cr.recDisplay = ch.value;
+            }
+            const affected = [...new Set(changes.map(ch => ch.rowIdx))];
+            for (const ri of affected) {
+                const alumno = (currentState.alumnos || []).find(a => a.rowIdx === ri);
+                if (alumno) { recomputeAlumno(alumno); updateAlumnoDOM(alumno); }
+            }
+            for (const ch of changes) {
+                const inp = document.querySelector(`.rec-input[data-row="${ch.rowIdx}"][data-col="${ch.colIdx}"]`);
+                if (inp) markRecSaved(inp);
+            }
+            renderStats();
+            refreshPendingState();
+            updateStatusBar();
+            if (status) status.textContent = 'Guardado ' + new Date().toLocaleTimeString();
+        } catch(e) {
+            showMessage('Error al guardar: ' + (e.message || e), 'error');
+        } finally {
+            savingAll = false;
+            if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
+            if (btnSaveFloating) { btnSaveFloating.disabled = false; btnSaveFloating.textContent = 'Guardar'; }
+        }
+    }
+
+    async function resyncEvalActual() {
+        const btn = document.getElementById('btnResyncEval');
+        const unidad = unidadSelect.value;
+        if (!unidad) return;
+        if (btn) { btn.disabled = true; btn.textContent = '🔄 Sincronizando…'; }
+        try {
+            const result = await window.electronExcel.resyncUnidadEval({ unidad });
+            showMessage(`Evaluación resincronizada (${result.alumnos} alumnos, ${result.hojasAfectadas} hoja(s) de evaluación).`, 'success');
+        } catch (e) {
+            showMessage('Error al resincronizar: ' + (e.message || e), 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = '🔄 Resincronizar evaluación'; }
+        }
+    }
+
+    function resetAutoSave() {
+        if (autoSaveTimer) clearInterval(autoSaveTimer);
+        autoSaveTimer = setInterval(() => {
+            if (document.querySelectorAll('.rec-input.dirty-rec').length) saveAllRec();
+            if (document.querySelectorAll('.rec-input.needs-eval-sync').length) flushEvalSync();
+        }, 60000);
+    }
+
+    function alumnoUnitAverage(alumno) {
+        const vals = Object.values(alumno.ceNotas || {}).map(ce => ce.nota).filter(n => typeof n === "number" && n > 0);
+        if (!vals.length) return null;
+        return vals.reduce((s, n) => s + n, 0) / vals.length;
+    }
+
+    function renderStats() {
+        const alumnos = (currentState && currentState.alumnos) || [];
+        const nums = alumnos.map(alumnoUnitAverage).filter(n => n !== null);
+        const aprobados = nums.filter(n => n >= 5).length;
+        const media = nums.length ? nums.reduce((s, n) => s + n, 0) / nums.length : null;
+        document.getElementById("statArchivo").textContent   = (currentState && currentState.fileName) || "-";
+        document.getElementById("statAlumnos").textContent   = alumnos.length;
+        document.getElementById("statAprobados").textContent = aprobados;
+        document.getElementById("statSuspensos").textContent = nums.length - aprobados;
+        document.getElementById("statMedia").textContent     = media !== null ? media.toFixed(2).replace(".", ",") : "-";
+    }
+
+    function renderTable() {
+        const data = currentState;
+        if (!data) return;
+
+        const allAlumnos = getFilteredAlumnos();
+        const ceGroups = getCurrentCeGroups();
+        ensureCollapsedCePrefs(ceGroups);
+        ceGroups.forEach((group) => {
+            group.key = ceGroupKey(group);
+            group.collapsed = collapsedCeSet.has(group.key);
+            group.colspan = group.collapsed
+                ? 1
+                : 1 + group.criterios.reduce((sum, cr) => sum + (Number(cr.recColIdx) >= 0 ? 2 : 1), 0);
+        });
+
+        const totalPages = Math.max(1, Math.ceil(allAlumnos.length / perPage));
+        if (currentPage >= totalPages) currentPage = totalPages - 1;
+        const alumnos = allAlumnos.slice(currentPage * perPage, currentPage * perPage + perPage);
+
+        pageInfoEl.textContent = `Página ${currentPage + 1} de ${totalPages} (${allAlumnos.length} alumnos)`;
+        btnPrev.disabled = currentPage === 0;
+        btnNext.disabled = currentPage >= totalPages - 1;
+        const _bt = document.getElementById('btnPrevTop'), _bn = document.getElementById('btnNextTop'), _pi = document.getElementById('pageInfoTop');
+        if (_bt) _bt.disabled = currentPage === 0;
+        if (_bn) _bn.disabled = currentPage >= totalPages - 1;
+        if (_pi) _pi.textContent = `Pagina ${currentPage + 1} de ${totalPages} · ${allAlumnos.length} alumnos`;
+
+        if (!allAlumnos.length) {
+            notasHead.innerHTML = "";
+            refreshStickyHeaderOffset();
+            notasBody.innerHTML = `<tr><td colspan="99" class="empty-msg">Sin alumnos para mostrar.</td></tr>`;
+            updateStatusBar(allAlumnos.length, ceGroups);
+            return;
+        }
+
+        if (!ceGroups.length) {
+            notasHead.innerHTML = `<tr><th class="th-nombre">Alumno</th></tr>`;
+            refreshStickyHeaderOffset();
+            notasBody.innerHTML = `<tr><td colspan="1" class="empty-msg">No hay CE/CR incluidos para esta unidad.</td></tr>`;
+            updateStatusBar(allAlumnos.length, ceGroups);
+            return;
+        }
+
+        let head1 = `<tr>`;
+        head1 += `<th class="th-nombre" rowspan="2">Alumno</th>`;
+        ceGroups.forEach((g) => {
+            const c = g.color;
+            const label = `CE ${g.key}`;
+            const icon = g.collapsed ? "+" : "-";
+            head1 += `<th colspan="${g.colspan}" class="th-ce-group" style="background:${c.bg};color:${c.fg};border-left:3px solid ${c.border};border-bottom:1px solid ${c.border}"><button class="ce-toggle" type="button" data-ce-key="${escapeHtml(g.key)}">${label} ${icon}</button></th>`;
+        });
+        head1 += `</tr>`;
+
+        let head2 = `<tr>`;
+        ceGroups.forEach(g => {
+            const c = g.color;
+            head2 += `<th class="th-ce-nota" data-col-key="${escapeHtml(g.key)}-ce" style="width:72px;background:${c.notaBg};color:${c.fg};border-left:3px solid ${c.border};border-right:2px solid ${c.border};">Nota CE</th>`;
+            if (!g.collapsed) {
+                g.criterios.forEach((cr, crIdx) => {
+                    const crBg = crIdx % 2 === 0 ? c.bg : c.notaBg;
+                    head2 += `<th data-col-key="${cr.colIdx}" style="width:62px;font-size:0.72em;padding:5px 3px;background:${crBg};color:${c.fg};">${escapeHtml(cr.codigo)}</th>`;
+                    if (Number(cr.recColIdx) >= 0) {
+                        head2 += `<th class="th-rec" data-col-key="${cr.colIdx}-rec" style="width:56px;font-size:0.68em;padding:5px 3px;background:${crBg};">Rec</th>`;
+                    }
+                });
+            }
+        });
+        head2 += `</tr>`;
+        notasHead.innerHTML = head1 + head2;
+        refreshStickyHeaderOffset();
+
+        let bodyHtml = "";
+        alumnos.forEach(alumno => {
+            bodyHtml += `<tr>`;
+            bodyHtml += `<td class="td-nombre">${escapeHtml(alumno.nombre)}</td>`;
+            ceGroups.forEach(g => {
+                const c = g.color;
+                const ceInfo = alumno.ceNotas && alumno.ceNotas[g.key];
+                const ceDisp = formatNote(ceInfo ? ceInfo.display : "");
+                const ceCls  = gradeClass(ceInfo ? ceInfo.display : "");
+                bodyHtml += `<td data-ce="${alumno.rowIdx}-${g.key}" data-col-key="${escapeHtml(g.key)}-ce" style="border-left:3px solid ${c.border};border-right:2px solid ${c.border};background:${c.notaBg};"><span class="grade ${ceCls}">${ceDisp || "—"}</span></td>`;
+                if (!g.collapsed) {
+                    g.criterios.forEach((cr, crIdx) => {
+                        const crBg = crIdx % 2 === 0 ? c.bg : c.notaBg;
+                        const crVal = (alumno.crNotas || []).find(v => Number(v.colIdx) === Number(cr.colIdx));
+                        const disp  = formatNote(crVal ? crVal.display : "");
+                        const cls   = gradeClass(crVal ? crVal.display : "");
+                        bodyHtml += `<td data-col-key="${cr.colIdx}" style="background:${crBg}"><span class="grade ${cls}">${disp || "—"}</span></td>`;
+                        if (Number(cr.recColIdx) >= 0) {
+                            let recRaw = (crVal && crVal.recDisplay) ? escapeHtml(crVal.recDisplay) : "";
+                            const recNum = parseFloat(recRaw.replace(",", "."));
+                            if (!isNaN(recNum) && recNum === 0) recRaw = "";
+                            const crNota = crVal ? (parseFloat(String(crVal.display || crVal.nota || "").replace(",", ".")) || 0) : 0;
+                            const pendiente = crNota > 0 && crNota < 5 && recRaw === "";
+                            const pendClass = pendiente ? " rec-pending" : "";
+                            bodyHtml += `<td class="td-rec" data-col-key="${cr.colIdx}-rec" style="background:${crBg}"><input class="rec-input${pendClass}" type="text" placeholder="${pendiente ? "⚠" : "—"}" value="${recRaw}" data-row="${alumno.rowIdx}" data-col="${cr.colIdx}" data-codigo="${escapeHtml(cr.codigo)}" data-col-key="${cr.colIdx}-rec" onblur="saveRecFromInput(this)"></td>`;
+                        }
+                    });
+                }
+            });
+            bodyHtml += `</tr>`;
+        });
+        notasBody.innerHTML = bodyHtml;
+
+        // Contador de pendientes
+        const totalPendientes = countPendingRecoveries();
+        const badge = document.getElementById("pendientesBadge");
+        if (badge) {
+            badge.textContent = totalPendientes > 0
+                ? `⚠ ${totalPendientes} CR suspenso${totalPendientes > 1 ? "s" : ""} sin recuperación`
+                : "✓ Sin pendientes";
+            badge.style.color = totalPendientes > 0 ? "#92400e" : "#16a34a";
+            badge.style.background = totalPendientes > 0 ? "#fef3c7" : "#dcfce7";
+        }
+        updateStatusBar(allAlumnos.length, ceGroups);
+    }
+
+    function changePage(delta) {
+        currentPage += delta;
+        renderTable();
+    }
+
+    function changePerPage(val) {
+        perPage = parseInt(val || perPageSelect.value, 10);
+        perPageSelect.value = perPage;
+        const top = document.getElementById('perPageSelectTop');
+        if (top) top.value = perPage;
+        currentPage = 0;
+        renderTable();
+    }
+
+    function fillUnidadSelect(unidades, selected) {
+        unidadSelect.innerHTML = "";
+        if (!unidades.length) {
+            const o = document.createElement("option");
+            o.value = ""; o.textContent = "Sin datos";
+            unidadSelect.appendChild(o);
+            return;
+        }
+        unidades.forEach((u) => {
+            const o = document.createElement("option");
+            o.value = u.codigo;
+            o.textContent = u.label || u.codigo;
+            if (String(o.value) === String(selected)) o.selected = true;
+            unidadSelect.appendChild(o);
+        });
+    }
+
+    async function loadUnidad(unidad) {
+        await saveAllRec();
+        showMessage("Cargando notas...", "info");
+        try {
+            const data = await window.electronExcel.getNotasUnidad({ unidad });
+            if (!data) { showMessage("No se encontró el Excel. Selecciona el archivo desde el inicio.", "error"); return; }
+            currentState = data;
+            currentPage  = 0;
+            headerTitulo.textContent = data.titulo || "";
+            fillUnidadSelect(data.unidades || [], data.unidad);
+
+            const nombres = (data.alumnos || []).map(a => a.nombre);
+            alumnoSelect.innerHTML = `<option value="">— Todos —</option>` +
+                nombres.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+
+            (currentState.alumnos || []).forEach(recomputeAlumno);
+            renderStats();
+            renderTable();
+            resetAutoSave();
+            if (lastSyncEl) {
+                const fileLabel = data.fileName ? ` · ${data.fileName}` : '';
+                lastSyncEl.textContent = `Sincronizado ${new Date().toLocaleTimeString()}${fileLabel}`;
+            }
+            updateStatusBar((data.alumnos || []).length, getCurrentCeGroups());
+            const status = document.getElementById('saveStatus');
+            if (status) status.textContent = 'Sin cambios pendientes';
+            showMessage("Notas cargadas.", "success");
+        } catch (e) {
+            showMessage(e.message || "Error al cargar notas.", "error");
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+        applyDensityPreference();
+        if (!window.electronExcel) {
+            showMessage("Abre esta pantalla desde la aplicación local.", "error");
+            return;
+        }
+        const current = await window.electronExcel.getSelectedFile().catch(() => null);
+        if (!current) {
+            try {
+                const recent = JSON.parse(localStorage.getItem("recentExcelFiles") || "[]");
+                for (const f of recent) {
+                    try { if (await window.electronExcel.setSelectedFile(f.path)) break; } catch {}
+                }
+            } catch {}
+        }
+        unidadSelect.addEventListener("change", () => {
+            if (evalSyncTimeout) { clearTimeout(evalSyncTimeout); flushEvalSync(); }
+            currentPage = 0;
+            loadUnidad(unidadSelect.value);
+        });
+        alumnoSelect.addEventListener("change", () => { currentPage = 0; renderTable(); });
+        btnRefresh?.addEventListener("click", () => loadUnidad(unidadSelect.value));
+        densityToggleButton?.addEventListener("click", toggleDensityMode);
+        ceToggleAllButton?.addEventListener("click", toggleAllCeGroups);
+        window.addEventListener("resize", refreshStickyHeaderOffset);
+        notasHead.addEventListener("click", (event) => {
+            const button = event.target.closest(".ce-toggle");
+            if (button) toggleCeGroup(button.dataset.ceKey);
+        });
+        notasBody.addEventListener("focusin", (event) => {
+            if (event.target.classList.contains("rec-input")) highlightActiveCell(event.target);
+        });
+        notasBody.addEventListener("focusout", () => clearActiveCellHighlight());
+        notasBody.addEventListener("click", (event) => {
+            const cell = event.target.closest("td");
+            if (cell) highlightActiveCell(event.target.closest(".rec-input") || cell);
+        });
+        notasBody.addEventListener("keydown", (e) => {
+            const inp = e.target;
+            if (!inp.classList.contains("rec-input")) return;
+            const inputs = Array.from(notasBody.querySelectorAll(".rec-input"));
+            const i = inputs.indexOf(inp);
+            if (i === -1) return;
+            const cols = notasBody.querySelector("tr")?.querySelectorAll(".rec-input").length || 1;
+            let delta = null;
+            if (e.key === "Enter" || e.key === "ArrowDown") delta = cols;
+            else if (e.key === "ArrowUp") delta = -cols;
+            else if (e.key === "Tab" && !e.shiftKey) delta = 1;
+            else if (e.key === "Tab" && e.shiftKey) delta = -1;
+            else if (e.key === "ArrowRight" && inp.selectionStart === inp.value.length) delta = 1;
+            else if (e.key === "ArrowLeft" && inp.selectionStart === 0) delta = -1;
+            if (delta === null) return;
+            const next = inputs[i + delta];
+            if (e.key === "Tab" && !next) return; // deja Tab salir en el último input
+            e.preventDefault();
+            if (e.key === "Enter") inp.blur();
+            next?.focus();
+        });
+        loadUnidad("U1");
+
+        // Marcar cambios al editar cualquier rec-input
+        document.addEventListener('input', (e) => {
+            if (e.target.classList.contains('rec-input')) {
+                e.target.classList.add('dirty-rec');
+                e.target.classList.remove('saved-rec');
+                const validation = validateRecValue(e.target.value);
+                e.target.classList.toggle('invalid-rec', validation.isInvalid);
+                e.target.title = validation.message || '';
+                refreshPendingState();
+                updateStatusBar();
+            }
+        });
+    });
+
+    function markRecSaved(input) {
+        input.classList.remove('dirty-rec', 'invalid-rec');
+        input.classList.add('saved-rec');
+        setTimeout(() => input.classList.remove('saved-rec'), 1200);
+    }
+
+    function validateRecValue(value) {
+        const raw = String(value ?? '').trim();
+        if (!raw) return { isInvalid: false, message: '' };
+        if (!/^\d{1,2}([,.]\d{1,2})?$/.test(raw)) {
+            return { isInvalid: true, message: 'La recuperacion debe ser un numero de 0 a 10.' };
+        }
+        const numeric = Number(raw.replace(',', '.'));
+        if (Number.isNaN(numeric) || numeric < 0 || numeric > 10) {
+            return { isInvalid: true, message: 'La recuperacion debe estar entre 0 y 10.' };
+        }
+        return { isInvalid: false, message: '' };
+    }
+
+    function refreshPendingState() {
+        const pending = document.querySelectorAll('.rec-input.dirty-rec').length;
+        _hayPendientes = pending > 0;
+        document.title = _hayPendientes ? '* ' + _BASE_TITLE : _BASE_TITLE;
+        const status = document.getElementById('saveStatus');
+        if (status) status.textContent = _hayPendientes ? `${pending} cambio(s) pendiente(s)` : 'Sin cambios pendientes';
+        updateStatusBar();
+    }
+</script>
+</body>
+</html>

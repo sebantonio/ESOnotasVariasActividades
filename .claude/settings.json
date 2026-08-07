@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(node scripts/prepare-tauri-web.js)",
+      "Bash(npm run *)",
+      "Bash(git revert *)",
+      "PowerShell(node scripts/prepare-tauri-web.js 2>&1)",
+      "PowerShell(npm run tauri:build 2>&1)",
+      "Bash(ls \"C:\\\\OneDrive\\\\OneDrive - Consejería de Educación, Cultura y Deportes Castilla La-Mancha\\\\Github\\\\plantillaNotas\\\\plantillaNotas\\\\\" | Select-Object Name)",
+      "Read(//c/OneDrive/OneDrive - Consejería de Educación, Cultura y Deportes Castilla La-Mancha/Github/plantillaNotas/**)",
+      "Bash(taskkill /F /IM \"eso-notas-local.exe\")",
+      "Bash(Start-Sleep -Seconds 2)",
+      "Bash(pkill -f \"eso-notas-local\")",
+      "Bash(pkill -f \"ESO Notas\")",
+      "Bash(rm -f \"C:\\\\cargo-target\\\\plantillaNotas\\\\release\\\\eso_notas_local.pdb\")",
+      "Bash(rm -f \"C:\\\\cargo-target\\\\plantillaNotas\\\\release\\\\deps\"/*.pdb)",
+      "Bash(python3 -c ' *)",
+      "Bash(cd \"/c/cargo-target/plantillaNotas/release\" && ls -la \"CCGG PLANTILLA - CE AMPLIADOSv3.xlsx\" 2>&1)",
+      "Read(//c/cargo-target/plantillaNotas/release/**)",
+      "Bash(rm -rf /tmp/xlsxdump)",
+      "Bash(mkdir -p /tmp/xlsxdump)",
+      "Bash(unzip -o \"/c/cargo-target/plantillaNotas/release/CCGG PLANTILLA - CE AMPLIADOSv3.xlsx\" -d /tmp/xlsxdump)",
+      "Bash(node -e ' *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\seban\\.claude\\projects\\c--OneDrive-OneDrive---Consejer-a-de-Educaci-n--Cultura-y-Deportes-Castilla-La-Mancha-Github-ESOplantillaNotas-ESOplantillaNotas\\memory"
+    ]
+  }
+}

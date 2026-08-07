@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ver Notas por Evaluación</title>
+    <script src="app-bridge.js"></script>
+    <link rel="stylesheet" href="ux-common.css">
+    <script src="ux-common.js" defer></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { min-height: 100vh; padding: 20px; font-family: var(--font-body); background: var(--color-paper); color: #1f2937; }
+        .container { max-width: 1440px; margin: 0 auto; background: #fff; border-radius: 10px; box-shadow: 0 14px 42px rgba(31,41,55,0.16); overflow: clip; }
+        thead th.th-nombre { position: sticky; left: 0; z-index: 35; background: #eef2ff; }
+        tbody td.td-nombre { position: sticky; left: 0; z-index: 7; background: #ffffff; box-shadow: 2px 0 4px rgba(0,0,0,0.08); }
+        tbody tr:hover td.td-nombre { background: #eef2ff; }
+        .page-nav { display: flex; justify-content: space-between; gap: 12px; padding: 14px 16px; background: #f8f9ff; border-bottom: 1px solid #e5e7eb; }
+        .nav-group { display: flex; flex-wrap: wrap; gap: 10px; }
+        .nav-button, .nav-link { display: inline-flex; align-items: center; min-height: 38px; padding: 8px 14px; border-radius: 8px; font-size: 0.92em; font-weight: 700; text-decoration: none; cursor: pointer; }
+        .nav-button { color: var(--color-accent); background: white; border: 2px solid var(--color-accent); }
+        .nav-link { color: white; background: var(--color-accent); border: 2px solid var(--color-accent); }
+        .header { padding: 28px 30px; color: white; background: var(--color-accent-strong); }
+        .header h1 { margin-bottom: 4px; font-size: 1.5rem; }
+        #headerTitulo { font-size: 0.92rem; color: #d1d5db; font-weight: 400; margin-top: 2px; }
+        .toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid #e5e7eb; background: #fafbff; }
+        .toolbar label { font-size: 0.9rem; font-weight: 700; color: #374151; white-space: nowrap; }
+        select, input[type=search] { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 7px; font: inherit; font-size: 0.92rem; background: #fff; }
+        select { min-width: 210px; cursor: pointer; }
+        input[type=search] { min-width: 200px; }
+        select:focus, input[type=search]:focus { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+        .stats { display: flex; gap: 12px; padding: 12px 20px; background: #f8f9ff; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
+        .stat { padding: 8px 16px; background: white; border: 1px solid #e5e7eb; border-left: 4px solid var(--color-accent); border-radius: 8px; }
+        .stat span { display: block; font-size: 0.76rem; color: #6b7280; font-weight: 600; margin-bottom: 1px; }
+        .stat strong { font-size: 1.1rem; color: var(--color-accent); }
+        .message { padding: 10px 16px; border-radius: 7px; font-size: 0.9rem; margin: 12px 20px; display: none; }
+        .message.show { display: block; }
+        .message.info { background: #eff6ff; color: #1d4ed8; }
+        .message.success { background: #f0fdf4; color: #166534; }
+        .message.error { background: #fef2f2; color: #991b1b; }
+        .table-container { position: relative; overflow: auto; max-height: calc(100vh - 285px); margin: 0 20px 20px; padding: 0; background: #fff; }
+        table { table-layout: auto; width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.88rem; }
+        thead th { position: sticky; top: 0; z-index: 30; background: #eef2ff; color: var(--color-accent-strong); font-weight: 800; padding: 8px 6px; text-align: center; border-bottom: 2px solid #c7d2fe; white-space: nowrap; vertical-align: bottom; background-clip: padding-box; box-shadow: 0 1px 0 #c7d2fe; }
+        thead tr:nth-child(2) th { top: var(--sticky-head-row-1, 36px); z-index: 29; }
+        thead th.th-nombre { text-align: left; width: 210px; min-width: 210px; max-width: 210px; padding-left: 12px; }
+        thead th.th-final { position: sticky; left: 210px; top: 0; z-index: 36; width: 86px; min-width: 86px; background: #1e1b4b !important; color: white !important; vertical-align: middle; box-shadow: 3px 0 7px rgba(31,41,55,0.18); }
+        tbody tr:nth-child(even) { background: #fafafa; }
+        tbody tr:hover { background: #eef2ff; }
+        tbody td { padding: 7px 6px; border-bottom: 1px solid #f0f0f0; text-align: center; }
+        tbody td.td-nombre { width: 210px; min-width: 210px; max-width: 210px; text-align: left; padding-left: 12px; font-weight: 600; }
+        tbody td.td-final { position: sticky; left: 210px; z-index: 6; width: 86px; min-width: 86px; background: #ffffff; font-weight: 900; box-shadow: 3px 0 7px rgba(31,41,55,0.12); }
+        tbody tr:nth-child(even) td.td-final { background: #ffffff; }
+        tbody tr:hover td.td-final { background: #fff7ed; }
+        .grade { display: inline-block; padding: 3px 8px; border-radius: 5px; font-weight: 700; font-size: 0.88rem; min-width: 42px; }
+        .td-final .grade { min-width: 54px; padding: 4px 10px; font-size: 0.92rem; box-shadow: 0 1px 4px rgba(31,41,55,0.12); }
+        .grade-ok   { background: #dcfce7; color: #166534; }
+        .grade-warn { background: #fef3c7; color: #92400e; }
+        .grade-bad  { background: #fee2e2; color: #991b1b; }
+        .grade-empty{ background: #f3f4f6; color: #9ca3af; }
+        .th-ce-group { font-size: 0.8em; font-weight: 800; text-align: center; padding: 5px 6px; letter-spacing: 0; background: #f8fafc !important; color: #334155 !important; }
+        .th-ce-nota  { font-size: 0.76em; font-weight: 800; background: #ffffff !important; color: #334155 !important; }
+        .th-cr-col   { font-size: 0.66em; font-weight: 700; background: #f6f7f9 !important; color: #6b7280 !important; border-right: 1px solid #edf2f7; }
+        .th-rec      { font-size: 0.60em; font-weight: 600; background: #fdf6ee !important; color: #9a6a0a !important; width: 44px; }
+        .td-rec      { background: #fdf6ee; border-right: 1px solid #f4eadc; }
+        .rec-val     { display: inline-block; padding: 2px 5px; border-radius: 4px; font-weight: 600; font-size: 0.78rem; color: #9a6a0a; }
+        .rec-val.rec-improved { background: #dcfce7; color: #166534; font-weight: 800; box-shadow: 0 0 0 1px #86efac; }
+        .td-cr-cell  { background: #f8fafc; border-right: 1px solid #edf2f7; }
+        .td-ce-nota  { background: #ffffff; font-weight: 800; }
+        .density-toggle, .ce-toggle-all { min-height: 32px; padding: 5px 10px; font-size: 0.82rem; }
+        .ce-toggle { min-height: 24px; padding: 2px 8px; border: 1px solid #cbd5e1; border-radius: 999px; background: #fff; color: #334155; font-size: 0.74rem; font-weight: 850; cursor: pointer; }
+        .ce-toggle:hover { border-color: var(--color-accent); color: var(--color-accent-strong); background: #eef2ff; }
+        body.compact-mode .table-container { max-height: calc(100vh - 245px); }
+        body.compact-mode thead th { padding: 5px 4px !important; font-size: 0.72rem !important; }
+        body.compact-mode thead tr:nth-child(2) th { top: var(--sticky-head-row-1, 28px); }
+        body.compact-mode tbody td { padding: 4px 5px !important; }
+        body.compact-mode .grade { padding: 2px 6px; font-size: 0.78rem; }
+        tr.row-active > td { background-color: #ecfeff !important; }
+        td.col-active, th.col-active { box-shadow: inset 0 0 0 9999px rgba(14, 165, 233, 0.08); }
+        .active-cell { outline: 2px solid #0ea5e9; outline-offset: -2px; }
+        .table-status-bar { position: fixed; left: 16px; right: 16px; bottom: 12px; z-index: 920; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid #dbe4f0; border-radius: 8px; background: rgba(255,255,255,0.96); box-shadow: 0 14px 34px rgba(31,41,55,0.16); backdrop-filter: blur(8px); }
+        .status-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+        .status-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 4px 9px; border: 1px solid #e0e7ff; border-radius: 999px; background: #f8fafc; color: #475569; font-size: 0.8rem; font-weight: 650; white-space: nowrap; }
+        .status-chip strong { color: var(--color-accent-strong); font-weight: 850; }
+        .pag-btn { padding: 4px 10px; border: 1px solid #d1d5db; border-radius: 6px; background: white; cursor: pointer; font-size: 1rem; font-weight: 700; line-height: 1; }
+        .pag-btn:disabled { opacity: 0.4; cursor: default; }
+        .pag-btn:not(:disabled):hover { background: #eef2ff; border-color: var(--color-accent); color: var(--color-accent-strong); }
+        .empty-msg { padding: 40px; text-align: center; color: #9ca3af; font-style: italic; }
+        .pagination { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-top: 1px solid #e5e7eb; background: #fafbff; }
+        .pagination button { padding: 6px 14px; border: 1px solid #d1d5db; border-radius: 6px; background: white; cursor: pointer; font-size: 0.88rem; font-weight: 600; }
+        .pagination button:disabled { opacity: 0.4; cursor: default; }
+        .pagination button:not(:disabled):hover { background: #eef2ff; border-color: var(--color-accent); color: var(--color-accent-strong); }
+        .pagination .page-info { font-size: 0.88rem; color: #374151; }
+        .per-page { min-width: auto !important; padding: 6px 10px; font-size: 0.88rem; }
+    </style>
+</head>
+<body class="ux-app-shell ux-page-visor-notas">
+<div class="container">
+    <nav class="page-nav">
+        <div class="nav-group">
+            <button class="nav-button" type="button" onclick="window.history.back()">Atrás</button>
+            <a class="nav-link" href="index.html">Inicio</a>
+        </div>
+        <div class="nav-group">
+            <a class="nav-link" href="gestor-recuperaciones.html">Introducir recuperaciones</a>
+            <a class="nav-link" href="visor-unidades.html">Por Unidad</a>
+            <a class="nav-link" href="informes.html">Por CE/Unidad</a>
+        </div>
+    </nav>
+
+    <header class="header">
+        <h1>Notas por Evaluación</h1>
+        <div id="headerTitulo"></div>
+    </header>
+
+    <div class="toolbar">
+        <label for="evalSelect">Evaluación:</label>
+        <select id="evalSelect">
+            <option value="1" title="Solo datos de la 1ª evaluación">1ª Evaluación</option>
+            <option value="2" title="Incluye lo acumulado hasta 2ª evaluación">2ª Evaluación (acumulada)</option>
+            <option value="2solo" title="Solo criterios de la 2ª evaluación">2ª Evaluación (solo 2ª)</option>
+            <option value="3" title="Incluye lo acumulado hasta 3ª evaluación">3ª Evaluación (acumulada)</option>
+            <option value="3solo" title="Solo criterios de la 3ª evaluación">3ª Evaluación (solo 3ª)</option>
+            <option value="final" title="Vista final global">Final</option>
+        </select>
+        <span style="font-size:0.8rem;color:#6b7280;max-width:340px;line-height:1.3;">Acumulada: incluye evaluaciones anteriores. Solo: muestra únicamente esa evaluación.</span>
+        <label for="alumnoSelect">Alumno:</label>
+        <select id="alumnoSelect"><option value="">— Todos —</option></select>
+        <label for="sortSelect">Orden:</label>
+        <select id="sortSelect">
+            <option value="nombre-asc">Nombre A-Z</option>
+            <option value="nombre-desc">Nombre Z-A</option>
+            <option value="final-desc">Nota final mayor-menor</option>
+            <option value="final-asc">Nota final menor-mayor</option>
+        </select>
+        <button class="pag-btn" id="btnRefresh" type="button" title="Recargar datos de la evaluación actual">Recargar</button>
+        <button class="pag-btn" id="btnCopyTable" type="button" onclick="copiarTabla()" title="Copiar tabla completa al portapapeles (pega en Excel)">📋 Copiar</button>
+        <button class="pag-btn" id="btnClearFilters" type="button" title="Limpiar filtros">Limpiar filtros</button>
+        <button class="pag-btn density-toggle" id="densityToggleButton" type="button">Compacto</button>
+        <button class="pag-btn ce-toggle-all" id="ceToggleAllButton" type="button">Abrir CE</button>
+        <span id="lastSync" style="font-size:0.8rem;color:#6b7280;white-space:nowrap;">Sin sincronizar</span>
+        <span style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0;">
+            <button class="pag-btn" id="btnPrevTop" onclick="changePage(-1)" disabled>&#8249;</button>
+            <span id="pageInfoTop" style="font-size:0.82rem;color:#374151;white-space:nowrap;"></span>
+            <button class="pag-btn" id="btnNextTop" onclick="changePage(1)">&#8250;</button>
+            <select id="perPageSelectTop" class="per-page" onchange="changePerPage(this.value)">
+                <option value="10">10</option>
+                <option value="15" selected>15</option>
+                <option value="20">20</option>
+                <option value="30">30</option>
+            </select>
+        </span>
+    </div>
+
+    <div class="stats">
+        <div class="stat"><span>Archivo</span><strong id="statArchivo">-</strong></div>
+        <div class="stat"><span>Alumnos</span><strong id="statAlumnos">0</strong></div>
+        <div class="stat"><span>Aprobados</span><strong id="statAprobados">0</strong></div>
+        <div class="stat"><span>Suspensos</span><strong id="statSuspensos">0</strong></div>
+        <div class="stat"><span>Media</span><strong id="statMedia">-</strong></div>
+    </div>
+
+    <div id="message" class="message"></div>
+
+    <div class="table-container">
+        <table id="notasTable">
+            <thead id="notasHead"></thead>
+            <tbody id="notasBody"></tbody>
+        </table>
+    </div>
+
+    <div class="pagination">
+        <button id="btnPrev" onclick="changePage(-1)" disabled>&#8249; Anterior</button>
+        <span class="page-info" id="pageInfo"></span>
+        <button id="btnNext" onclick="changePage(1)">Siguiente &#8250;</button>
+        <label for="perPageSelect" style="margin-left:auto;font-size:0.88rem;font-weight:600;color:#374151;">Por página:</label>
+        <select id="perPageSelect" class="per-page" onchange="changePerPage(this.value)">
+            <option value="10">10</option>
+            <option value="15" selected>15</option>
+            <option value="20">20</option>
+            <option value="30">30</option>
+        </select>
+    </div>
+</div>
+
+<script>
+    const evalSelect      = document.getElementById("evalSelect");
+    const alumnoSelect    = document.getElementById("alumnoSelect");
+    const sortSelect      = document.getElementById("sortSelect");
+    const notasHead       = document.getElementById("notasHead");
+    const notasBody       = document.getElementById("notasBody");
+    const messageEl       = document.getElementById("message");
+    const pageInfoEl      = document.getElementById("pageInfo");
+    const btnPrev         = document.getElementById("btnPrev");
+    const btnNext         = document.getElementById("btnNext");
+    const perPageSelect   = document.getElementById("perPageSelect");
+    const headerTitulo    = document.getElementById("headerTitulo");
+    const btnRefresh      = document.getElementById("btnRefresh");
+    const btnClearFilters = document.getElementById("btnClearFilters");
+    const lastSyncEl      = document.getElementById("lastSync");
+    const densityToggleButton = document.getElementById("densityToggleButton");
+    const ceToggleAllButton = document.getElementById("ceToggleAllButton");
+    const statusFiltered = document.getElementById("statusFiltered");
+    const statusOpenCe = document.getElementById("statusOpenCe");
+    const statusSync = document.getElementById("statusSync");
+    const VIEW_PREFS_KEY  = "visorNotasPrefs";
+    const DENSITY_PREFS_KEY = "visorNotasDensity";
+    const COLLAPSED_CE_KEY = "visorNotasCollapsedCe";
+    let focusReloadTimer  = null;
+    let collapsedCeSet = null;
+
+    let currentState = null;
+    let currentPage  = 0;
+    let perPage      = 15;
+
+    const CE_COLORS = [
+        { fg: "#334155", border: "var(--color-accent)" },
+        { fg: "#334155", border: "#0891b2" },
+        { fg: "#334155", border: "#16a34a" },
+        { fg: "#334155", border: "#b45309" },
+        { fg: "#334155", border: "#db2777" },
+        { fg: "#334155", border: "#64748b" },
+    ];
+
+    function showMessage(text, type) {
+        const pretty = (type === "error" && window.appUx && window.appUx.hintError)
+            ? window.appUx.hintError(text)
+            : text;
+        messageEl.textContent = pretty;
+        messageEl.className = "message " + type + " show";
+    }
+
+    function saveViewPrefs() {
+        try {
+            const prefs = {
+                evaluacion: evalSelect.value || "1",
+                alumno: alumnoSelect.value || "",
+                sort: sortSelect.value || "nombre-asc",
+                perPage
+            };
+            localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify(prefs));
+        } catch {}
+    }
+
+    function getSavedPrefs() {
+        try {
+            return JSON.parse(localStorage.getItem(VIEW_PREFS_KEY) || "null") || {};
+        } catch {
+            return {};
+        }
+    }
+
+    function clearFilters() {
+        alumnoSelect.value = "";
+        currentPage = 0;
+        saveViewPrefs();
+        renderTable();
+    }
+
+    function alumnoFinalNumber(alumno) {
+        const source = alumno && (alumno.finalDisplay ?? alumno.final);
+        const n = parseFloat(String(source ?? "").replace(",", "."));
+        return isNaN(n) ? -1 : n;
+    }
+
+    function applyDensityPreference() {
+        const compact = localStorage.getItem(DENSITY_PREFS_KEY) === "compact";
+        document.body.classList.toggle("compact-mode", compact);
+        if (densityToggleButton) {
+            densityToggleButton.textContent = compact ? "Amplio" : "Compacto";
+        }
+        refreshStickyHeaderOffset();
+    }
+
+    function toggleDensityMode() {
+        const compact = !document.body.classList.contains("compact-mode");
+        localStorage.setItem(DENSITY_PREFS_KEY, compact ? "compact" : "wide");
+        applyDensityPreference();
+    }
+
+    function refreshStickyHeaderOffset() {
+        requestAnimationFrame(() => {
+            const row = notasHead?.querySelector("tr:first-child");
+            const anchor = row?.querySelector("th:not([rowspan])") || row;
+            const height = anchor ? Math.ceil(anchor.getBoundingClientRect().height) : 36;
+            document.documentElement.style.setProperty("--sticky-head-row-1", `${height}px`);
+        });
+    }
+
+    function ceGroupKey(group) {
+        return String(group.ra.numero || group.ra.colIdx);
+    }
+
+    function ensureCollapsedCePrefs(groups) {
+        if (collapsedCeSet) return;
+        try {
+            const saved = JSON.parse(localStorage.getItem(COLLAPSED_CE_KEY) || "null");
+            collapsedCeSet = Array.isArray(saved)
+                ? new Set(saved.map(String))
+                : new Set(groups.map(ceGroupKey));
+        } catch {
+            collapsedCeSet = new Set(groups.map(ceGroupKey));
+        }
+    }
+
+    function saveCollapsedCePrefs() {
+        try {
+            localStorage.setItem(COLLAPSED_CE_KEY, JSON.stringify(Array.from(collapsedCeSet || [])));
+        } catch {}
+    }
+
+    function toggleCeGroup(key) {
+        if (!collapsedCeSet) collapsedCeSet = new Set();
+        if (collapsedCeSet.has(key)) collapsedCeSet.delete(key);
+        else collapsedCeSet.add(key);
+        saveCollapsedCePrefs();
+        renderTable();
+    }
+
+    function toggleAllCeGroups() {
+        const groups = getCurrentCeGroups();
+        ensureCollapsedCePrefs(groups);
+        const allCollapsed = groups.length > 0 && groups.every((group) => collapsedCeSet.has(ceGroupKey(group)));
+        collapsedCeSet = allCollapsed ? new Set() : new Set(groups.map(ceGroupKey));
+        saveCollapsedCePrefs();
+        renderTable();
+    }
+
+    function updateStatusBar(filteredCount, ceGroups) {
+        const openCount = (ceGroups || []).filter((group) => !collapsedCeSet?.has(ceGroupKey(group))).length;
+        if (statusFiltered) statusFiltered.textContent = String(filteredCount || 0);
+        if (statusOpenCe) statusOpenCe.textContent = String(openCount);
+        if (statusSync) statusSync.textContent = lastSyncEl?.textContent || "Sin sincronizar";
+        if (ceToggleAllButton) ceToggleAllButton.textContent = openCount ? "Plegar CE" : "Abrir CE";
+    }
+
+    function clearActiveCellHighlight() {
+        document.querySelectorAll(".row-active, .col-active, .active-cell").forEach((el) => {
+            el.classList.remove("row-active", "col-active", "active-cell");
+        });
+    }
+
+    function highlightActiveCell(cell) {
+        clearActiveCellHighlight();
+        const row = cell.closest("tr");
+        const colKey = cell.dataset.colKey;
+        if (row) row.classList.add("row-active");
+        cell.classList.add("active-cell");
+        if (colKey) {
+            document.querySelectorAll("[data-col-key]").forEach((el) => {
+                if (el.dataset.colKey === String(colKey)) el.classList.add("col-active");
+            });
+        }
+    }
+
+    function formatNote(display) {
+        if (!display && display !== 0) return "";
+        const s = String(display).trim();
+        if (s === "") return "";
+        const n = parseFloat(s.replace(",", "."));
+        if (isNaN(n)) return s;
+        return n.toFixed(2).replace(".", ",");
+    }
+
+    function gradeClass(display) {
+        if (!display || display === "") return "grade-empty";
+        const n = parseFloat(String(display).replace(",", "."));
+        if (isNaN(n) || n === 0) return "grade-empty";
+        if (n >= 7) return "grade-ok";
+        if (n >= 5) return "grade-warn";
+        return "grade-bad";
+    }
+
+    function escapeHtml(s) {
+        return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function normalize(s) {
+        return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+    }
+
+    function numberFrom(value) {
+        if (value === null || value === undefined || value === "") return 0;
+        if (typeof value === "number") return value;
+        const n = parseFloat(String(value).trim().replace("%", "").replace(",", "."));
+        return isNaN(n) ? 0 : n;
+    }
+
+    function getIncludedCriteria(criteria) {
+        return (criteria || []).filter((cr) => numberFrom(cr.peso) > 0);
+    }
+
+    function criterionCeNumber(codigo) {
+        const match = String(codigo || "").match(/^CR(\d+)/i);
+        return match ? Number(match[1]) : 0;
+    }
+
+    function raDisplayNumber(ra, criteria) {
+        const own = Number(ra && ra.numero);
+        if (own > 0) return own;
+        const firstCriterion = (criteria || []).find((cr) => Number(cr.raColIdx) === Number(ra && ra.colIdx));
+        return criterionCeNumber(firstCriterion && firstCriterion.codigo) || Number.MAX_SAFE_INTEGER;
+    }
+
+    function getCurrentCeGroups() {
+        const data = currentState;
+        if (!data) return [];
+        const criteria = getIncludedCriteria(data.criteria || []);
+        const raColumns = (data.raColumns || [])
+            .filter((ra) =>
+                criteria.some((cr) => Number(cr.raColIdx) === Number(ra.colIdx)) || numberFrom(ra.peso) > 0
+            )
+            .sort((a, b) =>
+                raDisplayNumber(a, criteria) - raDisplayNumber(b, criteria) ||
+                Number(a.colIdx) - Number(b.colIdx)
+            );
+        return raColumns.map((ra, i) => ({
+            ra,
+            color: CE_COLORS[i % CE_COLORS.length],
+            criterios: criteria.filter((c) => Number(c.raColIdx) === Number(ra.colIdx))
+        })).filter((g) => g.criterios.length);
+    }
+
+    function renderStats() {
+        const alumnos = (currentState && currentState.alumnos) || [];
+        const nums = alumnos.map(a => a.final).filter(n => typeof n === "number" && n > 0);
+        const aprobados = nums.filter(n => n >= 5).length;
+        const media = nums.length ? nums.reduce((s, n) => s + n, 0) / nums.length : null;
+        document.getElementById("statArchivo").textContent   = (currentState && currentState.fileName) || "-";
+        document.getElementById("statAlumnos").textContent   = alumnos.length;
+        document.getElementById("statAprobados").textContent = aprobados;
+        document.getElementById("statSuspensos").textContent = nums.length - aprobados;
+        document.getElementById("statMedia").textContent     = media !== null ? media.toFixed(2).replace(".", ",") : "-";
+    }
+
+    function renderTable() {
+        const data = currentState;
+        if (!data) return;
+
+        const filtroAlumno = alumnoSelect.value;
+        const allAlumnos = (data.alumnos || []).filter(a => !filtroAlumno || a.nombre === filtroAlumno);
+        const sortMode = sortSelect.value || "nombre-asc";
+        const nameCompare = (a, b) => normalize(a.nombre).localeCompare(normalize(b.nombre), "es", { numeric: true });
+        allAlumnos.sort((a, b) => {
+            if (sortMode === "nombre-desc") {
+                return nameCompare(b, a);
+            }
+            if (sortMode === "final-desc") {
+                return alumnoFinalNumber(b) - alumnoFinalNumber(a) || nameCompare(a, b);
+            }
+            if (sortMode === "final-asc") {
+                return alumnoFinalNumber(a) - alumnoFinalNumber(b) || nameCompare(a, b);
+            }
+            return nameCompare(a, b);
+        });
+        const ceGroups = getCurrentCeGroups();
+        ensureCollapsedCePrefs(ceGroups);
+        ceGroups.forEach((group) => {
+            group.key = ceGroupKey(group);
+            group.collapsed = collapsedCeSet.has(group.key);
+            group.colspan = group.collapsed
+                ? 1
+                : 1 + group.criterios.reduce((sum, cr) => sum + (Number(cr.recColIdx) >= 0 ? 2 : 1), 0);
+        });
+
+        const totalPages = Math.max(1, Math.ceil(allAlumnos.length / perPage));
+        if (currentPage >= totalPages) currentPage = totalPages - 1;
+        const alumnos = allAlumnos.slice(currentPage * perPage, currentPage * perPage + perPage);
+
+        pageInfoEl.textContent = `Página ${currentPage + 1} de ${totalPages} (${allAlumnos.length} alumnos)`;
+        btnPrev.disabled = currentPage === 0;
+        btnNext.disabled = currentPage >= totalPages - 1;
+        const _bt = document.getElementById('btnPrevTop'), _bn = document.getElementById('btnNextTop'), _pi = document.getElementById('pageInfoTop');
+        if (_bt) _bt.disabled = currentPage === 0;
+        if (_bn) _bn.disabled = currentPage >= totalPages - 1;
+        if (_pi) _pi.textContent = `Página ${currentPage + 1} de ${totalPages} · ${allAlumnos.length} alumnos`;
+
+        if (!allAlumnos.length) {
+            notasHead.innerHTML = "";
+            refreshStickyHeaderOffset();
+            notasBody.innerHTML = `<tr><td colspan="99" class="empty-msg">Sin alumnos para mostrar.</td></tr>`;
+            updateStatusBar(allAlumnos.length, ceGroups);
+            return;
+        }
+
+        // Agrupar CRs por CE (raColIdx) — calcular colspan teniendo en cuenta columnas Rec
+        if (!ceGroups.length) {
+            notasHead.innerHTML = `<tr><th class="th-nombre">Alumno</th><th class="th-final">Nota<br>Final</th></tr>`;
+            refreshStickyHeaderOffset();
+            notasBody.innerHTML = `<tr><td colspan="2" class="empty-msg">No hay CE/CR incluidos para esta evaluación.</td></tr>`;
+            updateStatusBar(allAlumnos.length, ceGroups);
+            return;
+        }
+
+        // Cabecera fila 1: Alumno (rowspan=2) | Final (rowspan=2) | CE bloques
+        let head1 = `<tr>`;
+        head1 += `<th class="th-nombre" rowspan="2">Alumno</th>`;
+        head1 += `<th rowspan="2" class="th-final">Nota<br>Final</th>`;
+        ceGroups.forEach((g, i) => {
+            const c = g.color;
+            const label = `CE ${g.ra.numero || (i + 1)}`;
+            const icon = g.collapsed ? "+" : "-";
+            head1 += `<th colspan="${g.colspan}" class="th-ce-group" style="border-left:4px solid ${c.border};border-bottom:1px solid #d8e1ee;"><button class="ce-toggle" type="button" data-ce-key="${escapeHtml(g.key)}">${label} ${icon}</button></th>`;
+        });
+        head1 += `</tr>`;
+
+        // Cabecera fila 2: Nota CE | CR1.1 | Rec | CR1.2 | Rec | ...
+        let head2 = `<tr>`;
+        ceGroups.forEach(g => {
+            const c = g.color;
+            head2 += `<th class="th-ce-nota" data-col-key="${escapeHtml(g.key)}-ce" style="width:72px;border-left:4px solid ${c.border};border-right:1px solid #cbd5e1;">Nota CE</th>`;
+            if (!g.collapsed) {
+                g.criterios.forEach((cr) => {
+                    head2 += `<th class="th-cr-col" data-col-key="${cr.colIdx}" style="width:58px;padding:5px 3px;">${escapeHtml(cr.codigo)}</th>`;
+                    if (Number(cr.recColIdx) >= 0) {
+                        head2 += `<th class="th-rec" data-col-key="${cr.colIdx}-rec" style="width:44px;padding:5px 3px;">Rec</th>`;
+                    }
+                });
+            }
+        });
+        head2 += `</tr>`;
+        notasHead.innerHTML = head1 + head2;
+        refreshStickyHeaderOffset();
+
+        // Filas de alumnos
+        let bodyHtml = "";
+        alumnos.forEach(alumno => {
+            bodyHtml += `<tr>`;
+            bodyHtml += `<td class="td-nombre">${escapeHtml(alumno.nombre)}</td>`;
+            // Nota Final — primera
+            const fDisp = formatNote(alumno.finalDisplay);
+            const fCls  = gradeClass(alumno.finalDisplay);
+            bodyHtml += `<td class="td-final"><span class="grade ${fCls}">${fDisp || "—"}</span></td>`;
+            // CE groups
+            ceGroups.forEach(g => {
+                const c = g.color;
+                const raVal = (alumno.rraa || []).find(r => Number(r.colIdx) === Number(g.ra.colIdx));
+                const ceDisp = formatNote(raVal ? raVal.display : "");
+                const ceCls  = gradeClass(raVal ? raVal.display : "");
+                bodyHtml += `<td class="td-ce-nota" data-col-key="${escapeHtml(g.key)}-ce" style="border-left:4px solid ${c.border};border-right:1px solid #cbd5e1;"><span class="grade ${ceCls}">${ceDisp || "—"}</span></td>`;
+                if (!g.collapsed) {
+                g.criterios.forEach((cr) => {
+                    const crVal = (alumno.criterios || []).find(v => Number(v.colIdx) === Number(cr.colIdx));
+                    const disp  = formatNote(crVal ? crVal.display : "");
+                    const cls   = gradeClass(crVal ? crVal.display : "");
+                    bodyHtml += `<td class="td-cr-cell" data-col-key="${cr.colIdx}"><span class="grade ${cls}">${disp || "—"}</span></td>`;
+                    if (Number(cr.recColIdx) >= 0) {
+                        const recDisp = formatNote(crVal ? crVal.recDisplay : "");
+                        const recNum  = parseFloat(String(crVal ? crVal.recDisplay : "").replace(",","."));
+                        const origNum = parseFloat(String(crVal ? crVal.display    : "").replace(",","."));
+                        const improved = !isNaN(recNum) && !isNaN(origNum) && recNum > origNum;
+                        bodyHtml += `<td class="td-rec" data-col-key="${cr.colIdx}-rec"><span class="rec-val${improved?' rec-improved':''}">${recDisp || "—"}</span></td>`;
+                    }
+                });
+                }
+            });
+            bodyHtml += `</tr>`;
+        });
+        notasBody.innerHTML = bodyHtml;
+        updateStatusBar(allAlumnos.length, ceGroups);
+    }
+
+    function changePage(delta) {
+        currentPage += delta;
+        saveViewPrefs();
+        renderTable();
+    }
+
+    function changePerPage(val) {
+        perPage = parseInt(val || perPageSelect.value, 10);
+        perPageSelect.value = perPage;
+        const top = document.getElementById('perPageSelectTop');
+        if (top) top.value = perPage;
+        currentPage = 0;
+        saveViewPrefs();
+        renderTable();
+    }
+
+    async function loadEvaluacion(evaluacion) {
+        showMessage("Cargando notas...", "info");
+        try {
+            const data = await window.electronExcel.getNotasEvaluacion({ evaluacion });
+            if (!data) { showMessage("No se encontró el Excel. Selecciona el archivo desde el inicio.", "error"); return; }
+            currentState = data;
+            currentPage  = 0;
+            headerTitulo.textContent = data.title || data.sheetName || "";
+
+            // Poblar selector de alumnos
+            const nombres = (data.alumnos || []).map(a => a.nombre);
+            alumnoSelect.innerHTML = `<option value="">— Todos —</option>` +
+                nombres.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+
+            const prefs = getSavedPrefs();
+            if (prefs.evaluacion === evaluacion) {
+                if (prefs.alumno && nombres.includes(prefs.alumno)) {
+                    alumnoSelect.value = prefs.alumno;
+                }
+                if (prefs.sort && [...sortSelect.options].some(o => o.value === prefs.sort)) {
+                    sortSelect.value = prefs.sort;
+                }
+            }
+
+            renderStats();
+            renderTable();
+            if (lastSyncEl) {
+                const fileName = data.fileName ? ` · ${data.fileName}` : "";
+                lastSyncEl.textContent = `Sincronizado ${new Date().toLocaleTimeString()}${fileName}`;
+            }
+            updateStatusBar((data.alumnos || []).length, getCurrentCeGroups());
+            saveViewPrefs();
+            showMessage("Notas cargadas.", "success");
+        } catch (e) {
+            showMessage(e.message || "Error al cargar notas.", "error");
+        }
+    }
+
+    function copiarTabla() {
+        if (!currentState) return;
+        const ceGroups = getCurrentCeGroups();
+        // Re-evaluate collapse state
+        ceGroups.forEach(g => { g.collapsed = collapsedCeSet ? collapsedCeSet.has(ceGroupKey(g)) : false; });
+        const alumnos = currentState.alumnos || [];
+
+        const headers = ["Alumno", "Nota Final"];
+        ceGroups.forEach(g => {
+            headers.push(`CE ${g.ra.numero || ""}`);
+            if (!g.collapsed) {
+                g.criterios.forEach(cr => {
+                    headers.push(cr.codigo);
+                    if (Number(cr.recColIdx) >= 0) headers.push(`${cr.codigo} Rec`);
+                });
+            }
+        });
+
+        const rows = [headers];
+        alumnos.forEach(alumno => {
+            const row = [alumno.nombre, formatNote(alumno.finalDisplay) || ""];
+            ceGroups.forEach(g => {
+                const raVal = (alumno.rraa || []).find(r => Number(r.colIdx) === Number(g.ra.colIdx));
+                row.push(formatNote(raVal ? raVal.display : "") || "");
+                if (!g.collapsed) {
+                    g.criterios.forEach(cr => {
+                        const crVal = (alumno.criterios || []).find(v => Number(v.colIdx) === Number(cr.colIdx));
+                        row.push(formatNote(crVal ? crVal.display : "") || "");
+                        if (Number(cr.recColIdx) >= 0) row.push(formatNote(crVal ? crVal.recDisplay : "") || "");
+                    });
+                }
+            });
+            rows.push(row);
+        });
+
+        const tsv = rows.map(r => r.join("\t")).join("\n");
+        navigator.clipboard.writeText(tsv).then(() => {
+            window.appUx && window.appUx.showStatus(`${alumnos.length} alumnos copiados al portapapeles`, "success");
+            const btn = document.getElementById("btnCopyTable");
+            if (btn) { btn.textContent = "✓ Copiado"; setTimeout(() => btn.textContent = "📋 Copiar", 1800); }
+        }).catch(() => window.appUx && window.appUx.showStatus("No se pudo copiar", "error"));
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+        if (!window.electronExcel) {
+            showMessage("Abre esta pantalla desde la aplicación local.", "error");
+            return;
+        }
+        // Auto-seleccionar Excel desde localStorage
+        const current = await window.electronExcel.getSelectedFile().catch(() => null);
+        if (!current) {
+            try {
+                const recent = JSON.parse(localStorage.getItem("recentExcelFiles") || "[]");
+                for (const f of recent) {
+                    try { if (await window.electronExcel.setSelectedFile(f.path)) break; } catch {}
+                }
+            } catch {}
+        }
+        evalSelect.addEventListener("change", () => { currentPage = 0; loadEvaluacion(evalSelect.value); });
+        applyDensityPreference();
+        alumnoSelect.addEventListener("change", () => {
+            currentPage = 0;
+            saveViewPrefs();
+            renderTable();
+        });
+        sortSelect.addEventListener("change", () => {
+            currentPage = 0;
+            saveViewPrefs();
+            renderTable();
+        });
+        btnRefresh?.addEventListener("click", () => loadEvaluacion(evalSelect.value));
+        btnClearFilters?.addEventListener("click", clearFilters);
+        densityToggleButton?.addEventListener("click", toggleDensityMode);
+        ceToggleAllButton?.addEventListener("click", toggleAllCeGroups);
+        window.addEventListener("resize", refreshStickyHeaderOffset);
+        notasHead.addEventListener("click", (event) => {
+            const button = event.target.closest(".ce-toggle");
+            if (button) toggleCeGroup(button.dataset.ceKey);
+        });
+        notasBody.addEventListener("click", (event) => {
+            const cell = event.target.closest("td");
+            if (cell) highlightActiveCell(cell);
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (e.ctrlKey && e.key.toLowerCase() === "f") {
+                e.preventDefault();
+                alumnoSelect.focus();
+                return;
+            }
+            if (e.altKey && e.key === "ArrowRight") {
+                e.preventDefault();
+                changePage(1);
+                return;
+            }
+            if (e.altKey && e.key === "ArrowLeft") {
+                e.preventDefault();
+                changePage(-1);
+            }
+        });
+
+        window.addEventListener("focus", () => {
+            clearTimeout(focusReloadTimer);
+            focusReloadTimer = setTimeout(() => loadEvaluacion(evalSelect.value), 300);
+        });
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden) {
+                clearTimeout(focusReloadTimer);
+                focusReloadTimer = setTimeout(() => loadEvaluacion(evalSelect.value), 300);
+            }
+        });
+
+        const prefs = getSavedPrefs();
+        const initialEval = prefs.evaluacion || "1";
+        if ([...evalSelect.options].some(o => o.value === initialEval)) {
+            evalSelect.value = initialEval;
+        }
+        const initialPerPage = Number(prefs.perPage || perPage);
+        if ([...perPageSelect.options].some(o => Number(o.value) === initialPerPage)) {
+            perPage = initialPerPage;
+            perPageSelect.value = String(initialPerPage);
+            const top = document.getElementById("perPageSelectTop");
+            if (top) top.value = String(initialPerPage);
+        }
+
+        loadEvaluacion(initialEval);
+    });
+</script>
+</body>
+</html>
