@@ -2294,8 +2294,43 @@ async fn excel_save_notas_unidad(payload: Value) -> Result<Value, String> {
         .map_err(|e| e.to_string())?
 }
 
-fn build_notas_for_eval_sync(_path: &str, _unidad: &str, notas: &[Value]) -> Result<Vec<Value>, String> {
-    Ok(notas.to_vec()) // stub temporal — Task 5 lo reemplaza por el calculo real
+// Tras guardar la hoja de unidad, relee los valores i1..i4 ya persistidos y
+// calcula el FINAL de cada criterio tocado en este guardado, para
+// propagarlo al cache de las hojas de evaluacion via build_eval_sheet_edits
+// (que no sabe nada de instrumentos, solo espera {nota, rec} por criterio).
+fn build_notas_for_eval_sync(path: &str, unidad: &str, notas: &[Value]) -> Result<Vec<Value>, String> {
+    let rows = read_sheet_rows(path, unidad).map_err(|_| format!("No se encontró la hoja \"{unidad}\"."))?;
+    let weights: [f64; 4] = [
+        cell_f64(&rows, 3, 2).unwrap_or(0.0),
+        cell_f64(&rows, 3, 3).unwrap_or(0.0),
+        cell_f64(&rows, 3, 4).unwrap_or(0.0),
+        cell_f64(&rows, 3, 5).unwrap_or(0.0),
+    ];
+
+    let out: Vec<Value> = notas.iter().filter_map(|nota_item| {
+        let ri = nota_item["rowIdx"].as_u64()? as usize;
+        let cr_notas = nota_item["crNotas"].as_object()?;
+        let mut cr_obj = serde_json::Map::new();
+        for (code, val_obj) in cr_notas {
+            let ci = val_obj.get("colIdx")?.as_u64()? as usize;
+            let values = [
+                cell_f64(&rows, ri, ci),
+                cell_f64(&rows, ri, ci + 1),
+                cell_f64(&rows, ri, ci + 2),
+                cell_f64(&rows, ri, ci + 3),
+            ];
+            let final_val = compute_final_weighted(values, weights);
+            let mut entry = serde_json::Map::new();
+            entry.insert("colIdx".to_string(), json!(ci));
+            entry.insert("nota".to_string(), json!(final_val));
+            if let Some(rec_val) = val_obj.get("rec") {
+                entry.insert("rec".to_string(), rec_val.clone());
+            }
+            cr_obj.insert(code.clone(), Value::Object(entry));
+        }
+        Some(json!({ "rowIdx": ri, "crNotas": Value::Object(cr_obj) }))
+    }).collect();
+    Ok(out)
 }
 
 fn excel_save_notas_unidad_impl(payload: Value) -> Result<Value, String> {
@@ -3358,6 +3393,56 @@ mod save_notas_unidad_tests {
         // (0.2*8 + 0.4*7 + 0.2*9 + 0.2*6) / 1.0 = 7.4
         assert!((cr["final"].as_f64().unwrap() - 7.4).abs() < 1e-9);
         assert_eq!(cr["recDisplay"], "5");
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn sincroniza_el_final_calculado_hacia_las_hojas_de_evaluacion() {
+        let path = copia_fixture_temporal();
+
+        let payload = json!({
+            "unidad": "U1",
+            "syncEval": true,
+            "notas": [
+                { "rowIdx": 6, "crNotas": {
+                    "CR1.1": { "colIdx": 7, "i1": 8.0, "i2": 7.0, "i3": 9.0, "i4": 6.0 }
+                }}
+            ]
+        });
+        let result = excel_save_notas_unidad_impl_with_path(&path, payload).expect("debe guardar y sincronizar");
+
+        // load_notas_unidad tras el guardado confirma que el FINAL persistido es 7.4
+        let alumno = &result["alumnos"][0];
+        let cr = alumno["crNotas"].as_array().unwrap().iter()
+            .find(|c| c["codigo"] == "CR1.1").unwrap();
+        assert!((cr["final"].as_f64().unwrap() - 7.4).abs() < 1e-9);
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn build_notas_for_eval_sync_pasa_null_al_vaciar_todos_los_instrumentos() {
+        let path = copia_fixture_temporal();
+
+        // Primero rellena CR1.1 para tener algo que vaciar despues.
+        let relleno = json!({ "unidad": "U1", "syncEval": false, "notas": [
+            { "rowIdx": 6, "crNotas": { "CR1.1": { "colIdx": 7, "i1": 8.0, "i2": 7.0, "i3": 9.0, "i4": 6.0 } } }
+        ]});
+        excel_save_notas_unidad_impl_with_path(&path, relleno).expect("relleno inicial");
+
+        // Vacia los 4 instrumentos (equivalente a borrar el contenido de las celdas).
+        let vacio = json!({ "unidad": "U1", "syncEval": false, "notas": [
+            { "rowIdx": 6, "crNotas": { "CR1.1": { "colIdx": 7, "i1": null, "i2": null, "i3": null, "i4": null } } }
+        ]});
+        excel_save_notas_unidad_impl_with_path(&path, vacio).expect("vaciado");
+
+        let notas_eval = build_notas_for_eval_sync(&path, "U1", &json!([
+            { "rowIdx": 6, "crNotas": { "CR1.1": { "colIdx": 7 } } }
+        ]).as_array().unwrap().to_vec()).expect("debe calcular sync");
+
+        let entry = &notas_eval[0]["crNotas"]["CR1.1"];
+        assert!(entry["nota"].is_null(), "debe propagar null para limpiar el cache de la hoja de evaluacion: {entry:?}");
 
         std::fs::remove_file(&path).ok();
     }
