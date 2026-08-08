@@ -3418,6 +3418,17 @@ mod save_notas_unidad_tests {
             .find(|c| c["codigo"] == "CR1.1").unwrap();
         assert!((cr["final"].as_f64().unwrap() - 7.4).abs() < 1e-9);
 
+        // Ademas confirma que build_eval_sheet_edits realmente escribio el cache
+        // en la hoja de evaluacion "1ª EVA" (U1 esta asignada a evaluacion "1ª"
+        // en la tabla Unidades del fixture). "Alumn 1" (U1 rowIdx=6) es el primer
+        // alumno de la hoja de evaluacion: cabecera CR1.1 en fila 17 Excel
+        // (0-idx 16, col D / 0-idx 3), datos desde fila 19 Excel (0-idx 18).
+        // Verificado leyendo el fixture con read_sheet_rows/find_evaluation_layout_indices.
+        let eva_rows = read_sheet_rows(&path, "1ª EVA").expect("debe leer la hoja de evaluacion");
+        assert_eq!(cell_str(&eva_rows, 18, 0), "Alumn 1");
+        let cached = cell_f64(&eva_rows, 18, 3).expect("CR1.1 debe tener un valor cacheado en 1ª EVA");
+        assert!((cached - 7.4).abs() < 1e-9, "el cache de CR1.1 en 1ª EVA debe ser 7.4, fue {cached}");
+
         std::fs::remove_file(&path).ok();
     }
 
@@ -3442,7 +3453,9 @@ mod save_notas_unidad_tests {
         ]).as_array().unwrap().to_vec()).expect("debe calcular sync");
 
         let entry = &notas_eval[0]["crNotas"]["CR1.1"];
-        assert!(entry["nota"].is_null(), "debe propagar null para limpiar el cache de la hoja de evaluacion: {entry:?}");
+        let obj = entry.as_object().expect("crNotas CR1.1 entry debe ser un objeto");
+        assert!(obj.contains_key("nota"), "la clave 'nota' debe estar presente (aunque sea null) para que build_eval_sheet_edits limpie el cache: {entry:?}");
+        assert!(obj["nota"].is_null(), "el valor debe ser null (FINAL no computable, todos los instrumentos vacios): {entry:?}");
 
         std::fs::remove_file(&path).ok();
     }
