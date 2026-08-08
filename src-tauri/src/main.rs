@@ -1251,7 +1251,7 @@ fn load_notas_unidad(path: &str, unidad: &str) -> Result<Value, String> {
         .map_err(|_| format!("No se encontró la hoja \"{unidad}\"."))?;
     let unidades = list_unit_sheets(path)?;
 
-    let first_row: usize = 4; // fila 5 en Excel (0-indexed)
+    let first_row: usize = 6; // fila 7 en Excel (0-indexed) — layout con instrumentos por criterio
 
     // Cargar nombres desde load_alumnos (mismo código que el gestor de alumnos)
     let nombres_datos: Vec<String> = match load_alumnos(path) {
@@ -1286,6 +1286,24 @@ fn load_notas_unidad(path: &str, unidad: &str) -> Result<Value, String> {
             if !cr_cols.is_empty() { break; }
         }
     }
+
+    // Instrumentos de la unidad: fila 2 (etiquetas) y fila 4 (pesos), columnas
+    // C:F (0-idx 2..6) — globales para toda la hoja, compartidos por todos los
+    // criterios (no hay una fila 2/4 por bloque, todos los bloques referencian
+    // estas mismas 4 celdas via formula '=$C$2' etc.).
+    let instrument_weights: [f64; 4] = [
+        cell_f64(&rows, 3, 2).unwrap_or(0.0),
+        cell_f64(&rows, 3, 3).unwrap_or(0.0),
+        cell_f64(&rows, 3, 4).unwrap_or(0.0),
+        cell_f64(&rows, 3, 5).unwrap_or(0.0),
+    ];
+    let instrumentos_unidad: Vec<Value> = (0..4usize).map(|slot| {
+        json!({
+            "slot": slot,
+            "abrev": cell_str(&rows, 1, 2 + slot),
+            "peso": instrument_weights[slot],
+        })
+    }).collect();
 
     // Leer ponderaciones de PESOS usando XML directo para ambas filas (CR map y valores de unidad)
     let ponderaciones_por_cr: std::collections::HashMap<String, f64> = {
@@ -1340,11 +1358,12 @@ fn load_notas_unidad(path: &str, unidad: &str) -> Result<Value, String> {
     let criterios_json: Vec<Value> = cr_cols.iter()
         .map(|(code, ci)| {
             let ponderacion = ponderaciones_por_cr.get(code).copied().unwrap_or(0.0);
-            json!({ "codigo": code, "colIdx": ci, "recColIdx": ci + 1, "ponderacion": ponderacion })
+            json!({ "codigo": code, "colIdx": ci, "recColIdx": ci + 5, "ponderacion": ponderacion })
         })
         .collect();
 
-    // Rec: se guarda en la propia hoja de unidad, en la columna adyacente (ci+1) a cada CR.
+    // Rec: se guarda en la propia hoja de unidad, en la columna ci+5 de cada bloque de criterio
+    // (bloque = i1,i2,i3,i4,FINAL,Rec).
     let mut alumnos: Vec<Value> = Vec::new();
     let max_alumnos = nombres_datos.len().max(37);
     for ri in first_row..(first_row + max_alumnos).min(rows.len()) {
@@ -1353,10 +1372,18 @@ fn load_notas_unidad(path: &str, unidad: &str) -> Result<Value, String> {
         if nombre.is_empty() { break; }
 
         let cr_notas: Vec<Value> = cr_cols.iter().map(|(code, ci)| {
-            let n = cell_f64(&rows, ri, *ci);
-            let d = cell_str(&rows, ri, *ci);
-            let rec_display = cell_str(&rows, ri, *ci + 1);
-            json!({ "codigo": code, "colIdx": ci, "recColIdx": ci + 1, "nota": n, "display": d, "recDisplay": rec_display })
+            let i1 = cell_f64(&rows, ri, *ci);
+            let i2 = cell_f64(&rows, ri, *ci + 1);
+            let i3 = cell_f64(&rows, ri, *ci + 2);
+            let i4 = cell_f64(&rows, ri, *ci + 3);
+            let final_val = compute_final_weighted([i1, i2, i3, i4], instrument_weights);
+            let rec_display = cell_str(&rows, ri, *ci + 5);
+            json!({
+                "codigo": code, "colIdx": ci,
+                "i1": i1, "i2": i2, "i3": i3, "i4": i4,
+                "final": final_val,
+                "recDisplay": rec_display
+            })
         }).collect();
 
         alumnos.push(json!({ "nombre": nombre, "rowIdx": ri, "crNotas": cr_notas }));
@@ -1364,7 +1391,11 @@ fn load_notas_unidad(path: &str, unidad: &str) -> Result<Value, String> {
 
     let titulo = cell_str(&rows, 2, 0);
     let file_name = Path::new(path).file_name().unwrap_or_default().to_string_lossy().to_string();
-    Ok(json!({ "filePath": path, "fileName": file_name, "unidad": unidad, "titulo": titulo, "unidades": unidades, "criterios": criterios_json, "alumnos": alumnos }))
+    Ok(json!({
+        "filePath": path, "fileName": file_name, "unidad": unidad, "titulo": titulo,
+        "unidades": unidades, "criterios": criterios_json, "instrumentosUnidad": instrumentos_unidad,
+        "alumnos": alumnos
+    }))
 }
 
 #[tauri::command]
@@ -3207,6 +3238,66 @@ mod cr_cols_tests {
     fn fila_sin_codigos_devuelve_vacio() {
         let cells = vec![(0usize, "nota final unidad".to_string())];
         assert_eq!(cr_cols_from_cells(cells.into_iter()), Vec::<(String, usize)>::new());
+    }
+}
+
+#[cfg(test)]
+mod load_notas_unidad_tests {
+    use super::*;
+
+    // Fixture real committeado en la raiz del repo (mismo archivo que usa la app
+    // como plantilla vacia). Verificado a mano con openpyxl: hoja U1, 100
+    // criterios (CE1..CE10 x 10 CR), primer colIdx=7 (columna H), ultimo
+    // colIdx=601, pesos fila4 C:F=[0.2,0.4,0.2,0.2], etiquetas fila2 C:F=
+    // ["i1","i2","i3","i4"].
+    fn fixture_path() -> String {
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../Plantilla_Notas_ESO.xlsx").to_string()
+    }
+
+    #[test]
+    fn lee_100_criterios_de_u1_con_offsets_correctos() {
+        let data = load_notas_unidad(&fixture_path(), "U1").expect("debe cargar U1");
+        let criterios = data["criterios"].as_array().expect("criterios debe ser array");
+        assert_eq!(criterios.len(), 100, "U1 tiene 100 criterios (CE1..CE10 x 10): {criterios:?}");
+
+        let primero = &criterios[0];
+        assert_eq!(primero["codigo"], "CR1.1");
+        assert_eq!(primero["colIdx"], 7);
+
+        let ultimo = criterios.last().unwrap();
+        assert_eq!(ultimo["codigo"], "CR10.10");
+        assert_eq!(ultimo["colIdx"], 601);
+    }
+
+    #[test]
+    fn lee_instrumentos_y_pesos_de_la_unidad() {
+        let data = load_notas_unidad(&fixture_path(), "U1").expect("debe cargar U1");
+        let instrumentos = data["instrumentosUnidad"].as_array().expect("debe existir instrumentosUnidad");
+        assert_eq!(instrumentos.len(), 4);
+        let pesos: Vec<f64> = instrumentos.iter().map(|i| i["peso"].as_f64().unwrap()).collect();
+        assert_eq!(pesos, vec![0.2, 0.4, 0.2, 0.2]);
+        let abrevs: Vec<String> = instrumentos.iter().map(|i| i["abrev"].as_str().unwrap().to_string()).collect();
+        assert_eq!(abrevs, vec!["i1", "i2", "i3", "i4"]);
+    }
+
+    #[test]
+    fn alumnos_empiezan_en_fila_indice_6() {
+        let data = load_notas_unidad(&fixture_path(), "U1").expect("debe cargar U1");
+        let alumnos = data["alumnos"].as_array().expect("alumnos debe ser array");
+        assert!(!alumnos.is_empty(), "la plantilla trae alumnos de ejemplo");
+        assert_eq!(alumnos[0]["rowIdx"], 6, "primer alumno en fila Excel 7 = indice 6");
+    }
+
+    #[test]
+    fn cada_criterio_de_alumno_trae_i1_i4_final_y_rec() {
+        let data = load_notas_unidad(&fixture_path(), "U1").expect("debe cargar U1");
+        let alumno = &data["alumnos"][0];
+        let cr = alumno["crNotas"].as_array().unwrap().iter()
+            .find(|c| c["codigo"] == "CR1.1")
+            .expect("CR1.1 debe estar presente");
+        for campo in ["i1", "i2", "i3", "i4", "final", "recDisplay"] {
+            assert!(cr.get(campo).is_some(), "falta el campo {campo} en {cr:?}");
+        }
     }
 }
 
