@@ -2294,8 +2294,16 @@ async fn excel_save_notas_unidad(payload: Value) -> Result<Value, String> {
         .map_err(|e| e.to_string())?
 }
 
+fn build_notas_for_eval_sync(_path: &str, _unidad: &str, notas: &[Value]) -> Result<Vec<Value>, String> {
+    Ok(notas.to_vec()) // stub temporal — Task 5 lo reemplaza por el calculo real
+}
+
 fn excel_save_notas_unidad_impl(payload: Value) -> Result<Value, String> {
     let path = require_selected_path()?;
+    excel_save_notas_unidad_impl_with_path(&path, payload)
+}
+
+fn excel_save_notas_unidad_impl_with_path(path: &str, payload: Value) -> Result<Value, String> {
     let unidad = payload["unidad"].as_str().ok_or("Falta unidad")?.to_string();
     let notas = payload["notas"].as_array().ok_or("Falta notas")?.clone();
     // syncEval=false: guardado ligero (1 celda, sin recalcular caché de evaluación ni
@@ -2303,7 +2311,6 @@ fn excel_save_notas_unidad_impl(payload: Value) -> Result<Value, String> {
     // bloquear la escritura mientras el usuario sigue tecleando.
     let sync_eval = payload["syncEval"].as_bool().unwrap_or(true);
     let notas_for_unit = notas.clone();
-    let notas_for_eval = notas.clone();
 
     let unit_edit_fn: Box<dyn Fn(&str) -> Result<String, String>> = Box::new(move |xml: &str| {
         let mut s = xml.to_string();
@@ -2311,18 +2318,21 @@ fn excel_save_notas_unidad_impl(payload: Value) -> Result<Value, String> {
             if let Some(ri) = nota_item["rowIdx"].as_u64().map(|n| n as usize) {
                 if let Some(cr_notas) = nota_item["crNotas"].as_object() {
                     for (_code, val_obj) in cr_notas {
-                        if let Some(ci) = val_obj.get("colIdx").and_then(|v| v.as_u64()).map(|n| n as usize) {
-                            if let Some(val) = val_obj.get("nota") {
+                        let Some(ci) = val_obj.get("colIdx").and_then(|v| v.as_u64()).map(|n| n as usize) else { continue };
+                        // Bloque de 6 columnas: ci=i1, ci+1=i2, ci+2=i3, ci+3=i4,
+                        // ci+4=FINAL (formula, NUNCA se escribe), ci+5=Rec.
+                        for (offset, key) in [(0usize, "i1"), (1, "i2"), (2, "i3"), (3, "i4")] {
+                            if let Some(val) = val_obj.get(key) {
                                 match normalize_grade(val) {
-                                    Some(n) => { s = set_xml_cell(&s, ri, ci, Some(&json!(n)), "number")?; }
-                                    None    => { s = set_xml_cell(&s, ri, ci, None, "number")?; }
+                                    Some(n) => { s = set_xml_cell(&s, ri, ci + offset, Some(&json!(n)), "number")?; }
+                                    None    => { s = set_xml_cell(&s, ri, ci + offset, None, "number")?; }
                                 }
                             }
-                            if let Some(val) = val_obj.get("rec") {
-                                match normalize_grade(val) {
-                                    Some(n) => { s = set_xml_cell(&s, ri, ci + 1, Some(&json!(n)), "number")?; }
-                                    None    => { s = set_xml_cell(&s, ri, ci + 1, None, "number")?; }
-                                }
+                        }
+                        if let Some(val) = val_obj.get("rec") {
+                            match normalize_grade(val) {
+                                Some(n) => { s = set_xml_cell(&s, ri, ci + 5, Some(&json!(n)), "number")?; }
+                                None    => { s = set_xml_cell(&s, ri, ci + 5, None, "number")?; }
                             }
                         }
                     }
@@ -2335,26 +2345,27 @@ fn excel_save_notas_unidad_impl(payload: Value) -> Result<Value, String> {
     // El guardado del propio Rec/nota en la hoja de unidad va SIEMPRE primero y por
     // separado: debe quedar en disco aunque la sincronizacion con las hojas de
     // evaluacion (mas fragil: varias hojas, layouts variables) falle.
-    edit_workbook_sheets_xml(&path, vec![(unidad.as_str(), unit_edit_fn)])?;
+    edit_workbook_sheets_xml(path, vec![(unidad.as_str(), unit_edit_fn)])?;
 
     if !sync_eval {
+        // Guardado ligero (autosave por celda): no releer/recalcular la unidad
+        // entera para no bloquear la escritura mientras el usuario sigue
+        // tecleando — mismo comportamiento que la version anterior.
         return Ok(Value::Null);
     }
 
-    // Hojas de evaluacion afectadas: se editan y se escriben en UNA sola pasada de
-    // zip (antes se repetia una vez por hoja, bloqueando el autoguardado). Un fallo
-    // aqui no debe perder el guardado de la unidad, que ya esta en disco.
-    let eval_edits = build_eval_sheet_edits(&path, &unidad, &notas_for_eval)?;
+    let notas_for_eval = build_notas_for_eval_sync(path, &unidad, &notas)?;
+    let eval_edits = build_eval_sheet_edits(path, &unidad, &notas_for_eval)?;
     if !eval_edits.is_empty() {
         let (eval_names, eval_fns): (Vec<String>, Vec<Box<dyn Fn(&str) -> Result<String, String>>>) = eval_edits.into_iter().unzip();
         let all_eval_edits: Vec<(&str, Box<dyn Fn(&str) -> Result<String, String>>)> = eval_names.iter()
             .zip(eval_fns.into_iter())
             .map(|(name, f)| (name.as_str(), f))
             .collect();
-        edit_workbook_sheets_xml(&path, all_eval_edits)?;
+        edit_workbook_sheets_xml(path, all_eval_edits)?;
     }
 
-    load_notas_unidad(&path, &unidad)
+    load_notas_unidad(path, &unidad)
 }
 
 // Vuelve a propagar TODAS las notas/Rec ya guardados en una hoja de unidad hacia
@@ -3296,6 +3307,59 @@ mod load_notas_unidad_tests {
         for campo in ["i1", "i2", "i3", "i4", "final", "recDisplay"] {
             assert!(cr.get(campo).is_some(), "falta el campo {campo} en {cr:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod save_notas_unidad_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+
+    // Copia el fixture real a un archivo temporal unico por test, para que cada
+    // test pueda escribir sin pisar al fixture committeado ni a otros tests que
+    // corran en paralelo (cargo test corre tests en threads distintos por
+    // defecto).
+    fn copia_fixture_temporal() -> String {
+        let src = concat!(env!("CARGO_MANIFEST_DIR"), "/../Plantilla_Notas_ESO.xlsx");
+        let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+        let dst = std::env::temp_dir().join(format!("test_save_notas_unidad_{n}_{}.xlsx", std::process::id()));
+        std::fs::copy(src, &dst).expect("debe poder copiar el fixture");
+        dst.to_string_lossy().to_string()
+    }
+
+    #[test]
+    fn guarda_i1_i4_y_rec_en_las_columnas_correctas_y_no_toca_final() {
+        let path = copia_fixture_temporal();
+
+        // CR1.1 en U1 tiene colIdx=7 (verificado en load_notas_unidad_tests).
+        // Bloque: 7=i1, 8=i2, 9=i3, 10=i4, 11=FINAL (formula, no se toca), 12=Rec.
+        let payload = json!({
+            "unidad": "U1",
+            "syncEval": false,
+            "notas": [
+                { "rowIdx": 6, "crNotas": {
+                    "CR1.1": { "colIdx": 7, "i1": 8.0, "i2": 7.0, "i3": 9.0, "i4": 6.0, "rec": 5.0 }
+                }}
+            ]
+        });
+        excel_save_notas_unidad_impl_with_path(&path, payload).expect("debe guardar");
+
+        let data = load_notas_unidad(&path, "U1").expect("debe releer U1");
+        let alumno = &data["alumnos"][0];
+        let cr = alumno["crNotas"].as_array().unwrap().iter()
+            .find(|c| c["codigo"] == "CR1.1").unwrap();
+        assert_eq!(cr["i1"], 8.0);
+        assert_eq!(cr["i2"], 7.0);
+        assert_eq!(cr["i3"], 9.0);
+        assert_eq!(cr["i4"], 6.0);
+        // FINAL se recalcula en Rust con los mismos pesos que Excel (0.2/0.4/0.2/0.2):
+        // (0.2*8 + 0.4*7 + 0.2*9 + 0.2*6) / 1.0 = 7.4
+        assert!((cr["final"].as_f64().unwrap() - 7.4).abs() < 1e-9);
+        assert_eq!(cr["recDisplay"], "5");
+
+        std::fs::remove_file(&path).ok();
     }
 }
 
