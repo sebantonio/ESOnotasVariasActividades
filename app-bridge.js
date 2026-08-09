@@ -32,6 +32,7 @@
     addActividad: (payload) => invoke("excel_add_actividad", { payload }),
     getNotasUnidad: (payload) => invoke("excel_get_notas_unidad", { payload }),
     saveNotasUnidad: (payload) => invoke("excel_save_notas_unidad", { payload }),
+    saveUnidadInstrumentos: (payload) => invoke("excel_save_unidad_instrumentos", { payload }),
     resyncUnidadEval: (payload) => invoke("excel_resync_unidad_eval", { payload }),
     getNotasEvaluacion: (payload) => invoke("excel_get_notas_evaluacion", { payload }),
     getNotasEvaluacionAlumno: (payload) => invoke("excel_get_notas_evaluacion_alumno", { payload }),

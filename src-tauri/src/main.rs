@@ -2333,6 +2333,69 @@ fn build_notas_for_eval_sync(path: &str, unidad: &str, notas: &[Value]) -> Resul
     Ok(out)
 }
 
+// Valida el payload de excel_save_unidad_instrumentos: maximo 4 slots (limite
+// estructural de columnas del template), cada abreviatura debe existir en el
+// catalogo de Instrumentos (DATOS!N5:O13), y los pesos deben sumar 100%
+// (tolerancia 0.001 por redondeos de coma flotante).
+fn validate_unidad_instrumentos(slots: &[Value], catalogo_abrevs: &[String]) -> Result<(), String> {
+    if slots.len() > 4 {
+        return Err(format!("Máximo 4 instrumentos por unidad, se han recibido {}.", slots.len()));
+    }
+    let mut suma = 0.0;
+    for slot in slots {
+        let abrev = slot["abrev"].as_str().unwrap_or("");
+        if !catalogo_abrevs.iter().any(|a| a == abrev) {
+            return Err(format!("El instrumento \"{abrev}\" no existe en el catálogo de Instrumentos."));
+        }
+        suma += slot["peso"].as_f64().unwrap_or(0.0);
+    }
+    if (suma - 1.0).abs() > 0.001 {
+        return Err(format!("Los pesos deben sumar 100% (suman {:.1}%).", suma * 100.0));
+    }
+    Ok(())
+}
+
+fn excel_save_unidad_instrumentos_impl(payload: Value) -> Result<Value, String> {
+    let path = require_selected_path()?;
+    let unidad = payload["unidad"].as_str().ok_or("Falta unidad")?.to_string();
+    let slots = payload["slots"].as_array().ok_or("Falta slots")?.clone();
+
+    let catalogo = load_instrumentos(&path)?;
+    let catalogo_abrevs: Vec<String> = catalogo["instrumentos"].as_array().unwrap_or(&vec![])
+        .iter().filter_map(|i| i["codigo"].as_str().map(|s| s.to_string())).collect();
+    validate_unidad_instrumentos(&slots, &catalogo_abrevs)?;
+
+    let slots_owned = slots.clone();
+    edit_workbook_sheets_xml(&path, vec![(unidad.as_str(), Box::new(move |xml: &str| {
+        let mut s = xml.to_string();
+        for i in 0..4usize {
+            let ci = 2 + i; // columnas C:F (0-idx 2..6)
+            match slots_owned.get(i) {
+                Some(slot) => {
+                    let abrev = slot["abrev"].as_str().unwrap_or("");
+                    let peso = slot["peso"].as_f64().unwrap_or(0.0);
+                    s = set_xml_cell(&s, 1, ci, Some(&json!(abrev)), "text")?; // fila 2 (0-idx 1)
+                    s = set_xml_cell(&s, 3, ci, Some(&json!(peso)), "number")?; // fila 4 (0-idx 3)
+                }
+                None => {
+                    s = set_xml_cell(&s, 1, ci, None, "text")?;
+                    s = set_xml_cell(&s, 3, ci, None, "number")?;
+                }
+            }
+        }
+        Ok(s)
+    }) as Box<dyn Fn(&str) -> Result<String, String>>)])?;
+
+    load_notas_unidad(&path, &unidad)
+}
+
+#[tauri::command]
+async fn excel_save_unidad_instrumentos(payload: Value) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || excel_save_unidad_instrumentos_impl(payload))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 fn excel_save_notas_unidad_impl(payload: Value) -> Result<Value, String> {
     let path = require_selected_path()?;
     excel_save_notas_unidad_impl_with_path(&path, payload)
@@ -3470,10 +3533,55 @@ fn main() {
             excel_get_notas_actividad, excel_get_notas_actividades_tipo,
             excel_save_notas_actividad, excel_save_ce_notas, excel_add_actividad,
             excel_get_notas_evaluacion, excel_get_notas_evaluacion_alumno,
-            excel_get_notas_unidad, excel_save_notas_unidad, excel_resync_unidad_eval, excel_get_alumnos_informes, app_open_external,
+            excel_get_notas_unidad, excel_save_notas_unidad, excel_save_unidad_instrumentos, excel_resync_unidad_eval, excel_get_alumnos_informes, app_open_external,
             excel_get_diario, excel_save_diario_entrada, excel_delete_diario_entrada,
             excel_get_instrumentos, excel_save_instrumentos, save_csv_template, excel_download_template
         ])
         .run(tauri::generate_context!())
         .expect("error al ejecutar la aplicacion Tauri");
+}
+
+#[cfg(test)]
+mod unidad_instrumentos_tests {
+    use super::*;
+
+    #[test]
+    fn rechaza_si_los_pesos_no_suman_100_por_ciento() {
+        let slots = vec![
+            json!({"abrev": "PE", "peso": 0.5}),
+            json!({"abrev": "TD", "peso": 0.3}),
+        ];
+        let catalogo = vec!["PE".to_string(), "TD".to_string(), "TI".to_string()];
+        let result = validate_unidad_instrumentos(&slots, &catalogo);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("100"), "el mensaje debe explicar que falta sumar 100%");
+    }
+
+    #[test]
+    fn acepta_pesos_que_suman_100_por_ciento() {
+        let slots = vec![
+            json!({"abrev": "PE", "peso": 0.2}),
+            json!({"abrev": "TD", "peso": 0.4}),
+            json!({"abrev": "TI", "peso": 0.2}),
+            json!({"abrev": "TG", "peso": 0.2}),
+        ];
+        let catalogo = vec!["PE".to_string(), "TD".to_string(), "TI".to_string(), "TG".to_string()];
+        assert!(validate_unidad_instrumentos(&slots, &catalogo).is_ok());
+    }
+
+    #[test]
+    fn rechaza_abreviatura_que_no_esta_en_el_catalogo() {
+        let slots = vec![json!({"abrev": "ZZ", "peso": 1.0})];
+        let catalogo = vec!["PE".to_string(), "TD".to_string()];
+        let result = validate_unidad_instrumentos(&slots, &catalogo);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("ZZ"));
+    }
+
+    #[test]
+    fn rechaza_mas_de_4_slots() {
+        let slots: Vec<Value> = (0..5).map(|_| json!({"abrev": "PE", "peso": 0.2})).collect();
+        let catalogo = vec!["PE".to_string()];
+        assert!(validate_unidad_instrumentos(&slots, &catalogo).is_err());
+    }
 }
