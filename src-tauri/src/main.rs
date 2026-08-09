@@ -2481,9 +2481,13 @@ async fn excel_resync_unidad_eval(payload: Value) -> Result<Value, String> {
 
 fn excel_resync_unidad_eval_impl(payload: Value) -> Result<Value, String> {
     let path = require_selected_path()?;
+    excel_resync_unidad_eval_impl_with_path(&path, payload)
+}
+
+fn excel_resync_unidad_eval_impl_with_path(path: &str, payload: Value) -> Result<Value, String> {
     let unidad = payload["unidad"].as_str().ok_or("Falta unidad")?.to_string();
 
-    let unit_data = load_notas_unidad(&path, &unidad)?;
+    let unit_data = load_notas_unidad(path, &unidad)?;
     let alumnos = unit_data["alumnos"].as_array().cloned().unwrap_or_default();
 
     let notas: Vec<Value> = alumnos.iter().filter_map(|a| {
@@ -2495,7 +2499,7 @@ fn excel_resync_unidad_eval_impl(payload: Value) -> Result<Value, String> {
             let col_idx = cr["colIdx"].as_u64()?;
             let mut entry = serde_json::Map::new();
             entry.insert("colIdx".to_string(), json!(col_idx));
-            if let Some(n) = cr["nota"].as_f64() { entry.insert("nota".to_string(), json!(n)); }
+            if let Some(n) = cr["final"].as_f64() { entry.insert("nota".to_string(), json!(n)); }
             let rec_str = cr["recDisplay"].as_str().unwrap_or("").trim().replace(',', ".");
             if let Ok(v) = rec_str.parse::<f64>() { entry.insert("rec".to_string(), json!(v)); }
             cr_obj.insert(codigo, Value::Object(entry));
@@ -2503,7 +2507,7 @@ fn excel_resync_unidad_eval_impl(payload: Value) -> Result<Value, String> {
         Some(json!({ "rowIdx": row_idx, "crNotas": Value::Object(cr_obj) }))
     }).collect();
 
-    let eval_edits = build_eval_sheet_edits(&path, &unidad, &notas)?;
+    let eval_edits = build_eval_sheet_edits(path, &unidad, &notas)?;
     let hojas_afectadas = eval_edits.len();
     if !eval_edits.is_empty() {
         let (eval_names, eval_fns): (Vec<String>, Vec<Box<dyn Fn(&str) -> Result<String, String>>>) = eval_edits.into_iter().unzip();
@@ -2511,7 +2515,7 @@ fn excel_resync_unidad_eval_impl(payload: Value) -> Result<Value, String> {
             .zip(eval_fns.into_iter())
             .map(|(name, f)| (name.as_str(), f))
             .collect();
-        edit_workbook_sheets_xml(&path, all_eval_edits)?;
+        edit_workbook_sheets_xml(path, all_eval_edits)?;
     }
 
     Ok(json!({ "unidad": unidad, "alumnos": notas.len(), "hojasAfectadas": hojas_afectadas }))
@@ -3519,6 +3523,46 @@ mod save_notas_unidad_tests {
         let obj = entry.as_object().expect("crNotas CR1.1 entry debe ser un objeto");
         assert!(obj.contains_key("nota"), "la clave 'nota' debe estar presente (aunque sea null) para que build_eval_sheet_edits limpie el cache: {entry:?}");
         assert!(obj["nota"].is_null(), "el valor debe ser null (FINAL no computable, todos los instrumentos vacios): {entry:?}");
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn resync_unidad_eval_propaga_el_final_leyendo_el_campo_final_no_nota() {
+        let path = copia_fixture_temporal();
+
+        // Guarda i1-i4 de CR1.1 en U1 con syncEval:false, simulando el escenario
+        // que excel_resync_unidad_eval_impl existe para reparar: los datos quedan
+        // en la hoja de unidad pero NUNCA se propagan a la hoja de evaluacion.
+        let payload = json!({
+            "unidad": "U1",
+            "syncEval": false,
+            "notas": [
+                { "rowIdx": 6, "crNotas": {
+                    "CR1.1": { "colIdx": 7, "i1": 8.0, "i2": 7.0, "i3": 9.0, "i4": 6.0 }
+                }}
+            ]
+        });
+        excel_save_notas_unidad_impl_with_path(&path, payload).expect("debe guardar sin sincronizar");
+
+        // Antes del resync, la hoja de evaluacion NO tiene el valor propagado.
+        let eva_rows_antes = read_sheet_rows(&path, "1ª EVA").expect("debe leer la hoja de evaluacion");
+        assert_eq!(cell_str(&eva_rows_antes, 18, 0), "Alumn 1");
+        let cached_antes = cell_f64(&eva_rows_antes, 18, 3);
+        assert!(
+            cached_antes.is_none() || (cached_antes.unwrap() - 7.4).abs() > 1e-9,
+            "sin resync, CR1.1 en 1ª EVA no debe reflejar todavia el 7.4 recien guardado"
+        );
+
+        // excel_resync_unidad_eval_impl_with_path debe reparar la propagacion
+        // pendiente, leyendo el campo "final" (no "nota", que ya no existe en
+        // crNotas desde que load_notas_unidad devuelve i1..i4 + final).
+        excel_resync_unidad_eval_impl_with_path(&path, json!({ "unidad": "U1" }))
+            .expect("debe resincronizar");
+
+        let eva_rows = read_sheet_rows(&path, "1ª EVA").expect("debe releer la hoja de evaluacion");
+        let cached = cell_f64(&eva_rows, 18, 3).expect("CR1.1 debe tener un valor cacheado en 1ª EVA tras el resync");
+        assert!((cached - 7.4).abs() < 1e-9, "el cache de CR1.1 en 1ª EVA debe ser 7.4 tras el resync, fue {cached}");
 
         std::fs::remove_file(&path).ok();
     }
