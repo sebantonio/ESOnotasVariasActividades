@@ -1,8 +1,34 @@
 ---
-name: Estado del proyecto ESOplantillaNotas
-description: Estado actualizado 2026-08-06 — corrupcion XML de recuperaciones corregida, comandos async, rediseno visual completo con design.md
+name: Estado del proyecto ESOnotasVariasActividades
+description: Estado actualizado 2026-08-09 — nuevo layout con instrumentos por criterio, 7 tasks backend completadas + fix post-review
 type: project
 ---
+
+**Estado (2026-08-09, sesión 7 - Proyecto ESOnotasVariasActividades):**
+- **Proyecto bifurcado**: ESOnotasVariasActividades es una continuación de ESOplantillaNotas que adapta la app para una nueva estructura de Excel donde cada criterio se evalúa a través de hasta 4 instrumentos (i1-i4) con pesos configurables, en lugar de una nota directa.
+- **7 tasks backend completadas**:
+  - Task 1: `compute_final_weighted(i1..i4, pesos) → final` — media ponderada, ignora vacíos, con 5 tests
+  - Task 2: `cr_cols_from_cells()` — generaliza detección de criterios para nuevas filas (5→6, offset de 2→6 cols/criterio)
+  - Task 3: `load_notas_unidad()` refactorizado — lee i1-i4 + final + rec, instrumentosUnidad (abrev/pesos), filas comenzando en 6 (no 4)
+  - Task 4: `excel_save_notas_unidad_impl()` escriba i1-i4 en cols ci..ci+3, rec en ci+5, **nunca** en ci+4 (FINAL es fórmula)
+  - Task 5: `build_notas_for_eval_sync()` — recalcula FINAL en Rust tras guardar i1-i4, propaga a hojas de evaluación
+  - Task 6: Nuevo comando Tauri `excel_save_unidad_instrumentos(unidad, slots)` — configura instrumentos/pesos por unidad
+  - Task 7: Verificación final — 30 tests all passing (fue 29, +1 test post-review), `cargo build --release` limpio
+- **Fix post-review (Important issue)**:
+  - `excel_resync_unidad_eval_impl` leía campo obsoleto `cr["nota"]` que cambió a `cr["final"]` en Task 3
+  - Fix: línea 2502 cambiada a `cr["final"]`, test de regresión `resync_unidad_eval_propaga_el_final_leyendo_el_campo_final_no_nota` agregado
+  - Resultado: 30/30 tests passing, todo pusheado a origin/master (commit 71cf4df)
+- **README actualizado** con nueva sección "Evaluación por instrumentos" explicando flujo i1-i4 → FINAL → evaluaciones
+- **Versión**: 0.1.204 (bumped automáticamente durante build)
+
+**Cambios en estructura Excel (hojas Uxx):**
+- Antes: fila 3=header CR+Rec (2 cols/criterio), fila 4=fórmulas, fila 5+=datos, students empiezan en row 5 (0-idx 4)
+- Ahora: fila 2=labels (i1/i2/i3/i4 compartidos), fila 3=subheader, fila 4=pesos, fila 5=códigos, fila 6=fórmulas, fila 7+=datos, students comienzan en row 7 (0-idx 6), 6 cols/criterio (ci..ci+5)
+
+**How to apply:** 
+- Plantilla Excel debe usar `Plantilla_Notas_ESO.xlsx` (100 criterios en U1 de prueba, estructura new layout)
+- Frontend aún no reescrito (gestor-notas.html, visor-unidades.html, gestor-unidades.html para UI instrumentos/pesos siguen con layout anterior) — pendiente
+- Backend 100% listo, tests verifican correctitud con fixture real committed
 
 **Estado (2026-08-06, sesión 6):**
 - **Bug crítico corregido**: guardar Rec en recuperaciones vaciaba por completo las hojas 2ª/3ª EVA. Causa raíz: `set_xml_formula_cache_number` no reconocía celdas con `<v/>` self-closing (cache vacío típico de `IFERROR(...,"")`) y añadía un `<v>` duplicado → XML inválido → Excel reparaba vaciando la hoja. Fix + 9 tests de regresión (`formula_cache_tests`, `eval_layout_tests`). **Why:** confirmado con el Excel real del usuario (`CCGG PLANTILLA - CE AMPLIADOSv3.xlsx`), tenía backup y no hubo pérdida de datos.
