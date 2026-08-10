@@ -317,11 +317,112 @@
             background: #dc3545;
         }
 
+        button.config {
+            padding: 8px 12px;
+            background: #0d6efd;
+        }
+
+        button.config:hover {
+            background: #0b5ed7;
+        }
+
         .actions {
             display: flex;
             justify-content: space-between;
             gap: 15px;
             flex-wrap: wrap;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.open {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 90%;
+            padding: 0;
+            overflow: auto;
+            max-height: 90vh;
+        }
+
+        .modal-header {
+            padding: 24px;
+            background: var(--color-accent-strong);
+            color: white;
+            font-size: 1.3em;
+            font-weight: 600;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            background: #f8f9ff;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .modal-error {
+            display: none;
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            border-radius: 6px;
+        }
+
+        .modal-error.show {
+            display: block;
+        }
+
+        .instrument-slot {
+            display: grid;
+            grid-template-columns: 1fr 120px;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: #f8f9ff;
+            border-radius: 6px;
+            align-items: end;
+        }
+
+        .instrument-slot label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 0.9em;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .instrument-slot select,
+        .instrument-slot input {
+            width: 100%;
+        }
+
+        .weight-label {
+            font-size: 0.85em;
         }
 
         .loading {
@@ -453,7 +554,7 @@
                                     <th style="width: 90px;">Nº</th>
                                     <th>Unidad</th>
                                     <th style="width: 150px;">Evaluación</th>
-                                    <th style="width: 80px;">Acción</th>
+                                    <th style="width: 180px;">Acción</th>
                                 </tr>
                             </thead>
                             <tbody id="unidadesTableBody"></tbody>
@@ -486,6 +587,26 @@
             <div class="loading" id="loading">
                 <div class="spinner"></div>
                 <p>Procesando archivo...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Configurar instrumentos por unidad -->
+    <div class="modal-overlay" id="modalInstrumentos">
+        <div class="modal">
+            <div class="modal-header" id="modalTitle">
+                Configurar instrumentos para [Unidad]
+            </div>
+            <div class="modal-body">
+                <div class="modal-error" id="modalError"></div>
+                <div id="instrumentSlotsContainer"></div>
+                <div style="margin-top: 20px; padding: 12px; background: #e3f2fd; border-radius: 6px;">
+                    <strong>Suma ponderaciones:</strong> <span id="sumaPesos">0%</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="secondary" type="button" onclick="cerrarModalInstrumentos()">Cancelar</button>
+                <button type="button" onclick="guardarUnidadInstrumentos()">Guardar</button>
             </div>
         </div>
     </div>
@@ -654,7 +775,10 @@
                             <option value="3ª" ${unidad.evaluacion === '3ª' ? 'selected' : ''}>3ª</option>
                         </select>
                     </td>
-                    <td><button class="delete" type="button" onclick="eliminarUnidad(${idx})">🗑️</button></td>
+                    <td style="display: flex; gap: 8px;">
+                        <button class="config" type="button" onclick="abrirModalInstrumentos(${idx})">⚙️</button>
+                        <button class="delete" type="button" onclick="eliminarUnidad(${idx})">🗑️</button>
+                    </td>
                 </tr>
             `).join('');
         }
@@ -955,6 +1079,159 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
+        }
+
+        // ===== MODAL INSTRUMENTOS =====
+        let modalUnidadIdx = null;
+        let instrumentoCatalogo = [];
+        let modalSlots = [
+            { instrumento: '', peso: 0 },
+            { instrumento: '', peso: 0 },
+            { instrumento: '', peso: 0 },
+            { instrumento: '', peso: 0 }
+        ];
+
+        async function abrirModalInstrumentos(unidadIdx) {
+            try {
+                modalUnidadIdx = unidadIdx;
+                const unidad = unidadesActuales[unidadIdx];
+                if (!unidad) {
+                    mostrarMensaje('Unidad no encontrada.', 'error');
+                    return;
+                }
+
+                mostrarLoading(true);
+
+                // Cargar catálogo de instrumentos
+                if (instrumentoCatalogo.length === 0) {
+                    const result = await window.electronExcel.getInstrumentos();
+                    instrumentoCatalogo = result.instrumentos || [];
+                }
+
+                // Cargar notas de la unidad (para obtener config actual)
+                const unidadData = await window.electronExcel.getNotasUnidad({
+                    unidad: unidad.codigo
+                });
+
+                // Preparar slots con los instrumentos actuales
+                modalSlots = [
+                    { instrumento: '', peso: 0 },
+                    { instrumento: '', peso: 0 },
+                    { instrumento: '', peso: 0 },
+                    { instrumento: '', peso: 0 }
+                ];
+
+                if (unidadData && unidadData.instrumentosUnidad && Array.isArray(unidadData.instrumentosUnidad)) {
+                    unidadData.instrumentosUnidad.forEach((slot, i) => {
+                        if (i < 4) {
+                            modalSlots[i] = {
+                                instrumento: slot.instrumento || '',
+                                peso: Number(slot.peso) || 0
+                            };
+                        }
+                    });
+                }
+
+                mostrarLoading(false);
+                document.getElementById('modalTitle').textContent = `Configurar instrumentos para ${escaparHtml(unidad.codigo)}: ${escaparHtml(unidad.nombre)}`;
+                renderizarSlotsInstrumentos();
+                document.getElementById('modalInstrumentos').classList.add('open');
+            } catch (error) {
+                mostrarLoading(false);
+                mostrarMensaje('Error al abrir modal: ' + error.message, 'error');
+            }
+        }
+
+        function cerrarModalInstrumentos() {
+            document.getElementById('modalInstrumentos').classList.remove('open');
+            modalUnidadIdx = null;
+        }
+
+        function renderizarSlotsInstrumentos() {
+            const container = document.getElementById('instrumentSlotsContainer');
+            container.innerHTML = modalSlots.map((slot, idx) => `
+                <div class="instrument-slot">
+                    <div>
+                        <label for="instrumento${idx}">Instrumento ${idx + 1}</label>
+                        <select id="instrumento${idx}" onchange="actualizarSlot(${idx}, 'instrumento', this.value); actualizarSumaPesos()">
+                            <option value="">-- Selecciona --</option>
+                            ${instrumentoCatalogo.map((instr) => `
+                                <option value="${escaparHtml(instr.abreviatura)}" ${slot.instrumento === instr.abreviatura ? 'selected' : ''}>
+                                    ${escaparHtml(instr.abreviatura)} - ${escaparHtml(instr.nombre)}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="peso${idx}" class="weight-label">Peso (%)</label>
+                        <input type="number" id="peso${idx}" min="0" max="100" step="1" value="${slot.peso}" onchange="actualizarSlot(${idx}, 'peso', this.value); actualizarSumaPesos()" />
+                    </div>
+                </div>
+            `).join('');
+            actualizarSumaPesos();
+        }
+
+        function actualizarSlot(idx, campo, valor) {
+            if (campo === 'instrumento') {
+                modalSlots[idx].instrumento = valor;
+            } else if (campo === 'peso') {
+                modalSlots[idx].peso = Number(valor) || 0;
+            }
+        }
+
+        function actualizarSumaPesos() {
+            const suma = modalSlots.reduce((acc, slot) => acc + (Number(slot.peso) || 0), 0);
+            document.getElementById('sumaPesos').textContent = suma + '%';
+            document.getElementById('sumaPesos').style.color = validarSumaPesos(suma) ? '#22c55e' : '#ef4444';
+        }
+
+        function validarSumaPesos(suma = null) {
+            if (suma === null) {
+                suma = modalSlots.reduce((acc, slot) => acc + (Number(slot.peso) || 0), 0);
+            }
+            return Math.abs(suma - 100) <= 0.1;
+        }
+
+        async function guardarUnidadInstrumentos() {
+            const suma = modalSlots.reduce((acc, slot) => acc + (Number(slot.peso) || 0), 0);
+
+            if (!validarSumaPesos(suma)) {
+                document.getElementById('modalError').textContent = `Los pesos deben sumar 100% (actual: ${suma.toFixed(1)}%).`;
+                document.getElementById('modalError').classList.add('show');
+                return;
+            }
+
+            // Limpiar error si lo había
+            document.getElementById('modalError').classList.remove('show');
+
+            if (modalUnidadIdx === null) {
+                mostrarMensaje('Error: unidad no seleccionada.', 'error');
+                return;
+            }
+
+            try {
+                mostrarLoading(true);
+                const unidad = unidadesActuales[modalUnidadIdx];
+
+                // Preparar payload
+                const payload = {
+                    unidad: unidad.codigo,
+                    instrumentosUnidad: modalSlots.map(slot => ({
+                        instrumento: slot.instrumento || '',
+                        peso: slot.peso
+                    }))
+                };
+
+                // Guardar via backend
+                await window.electronExcel.saveUnidadInstrumentos(payload);
+
+                mostrarLoading(false);
+                mostrarMensaje(`Instrumentos guardados para ${unidad.codigo}.`, 'success');
+                cerrarModalInstrumentos();
+            } catch (error) {
+                mostrarLoading(false);
+                mostrarMensaje('Error al guardar instrumentos: ' + error.message, 'error');
+            }
         }
     </script>
 </body>
