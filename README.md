@@ -1,4 +1,4 @@
-# ESO Notas Local
+# ESO_notas_Actividades
 
 Aplicacion de escritorio para gestionar calificaciones de ESO sobre una plantilla Excel local. Permite mantener alumnos, unidades, competencias especificas, criterios, instrumentos de evaluacion, actividades, recuperaciones, informes y diario de clase desde una interfaz HTML empaquetada con Tauri.
 
@@ -137,46 +137,56 @@ La ruta principal recomendada para esta version del proyecto es Tauri.
 
 La aplicacion trabaja sobre una plantilla Excel con estructura fija. La hoja principal es `DATOS`.
 
-Rangos relevantes:
+Rangos relevantes (hoja `DATOS`):
 
 | Seccion | Rango Excel | Notas |
 | --- | --- | --- |
 | Alumnos | `A4:B41` | Maximo 37 alumnos |
 | Unidades | `I5:K20` | Codigo, nombre y evaluacion |
-| Instrumentos | `N4:O13` | Maximo 10 instrumentos |
-| CE y criterios | Hoja `PESOS` | Ponderaciones por unidad |
+| Instrumentos | `N4:O13` | Maximo 10 instrumentos catalorados |
+| CE y criterios | Hoja `PESOS` | Ponderaciones de criterios dentro de CE |
 
-Columnas de unidades:
+### Hojas de unidad (U1..U15)
 
-| Columna | Contenido |
+Estructura actual: cada criterio se evalua con hasta 4 instrumentos (i1, i2, i3, i4) que se combinan en una media ponderada (`FINAL`).
+
+| Fila (Excel) | Contenido |
 | --- | --- |
-| `I` | Codigo |
-| `J` | Nombre |
-| `K` | Evaluacion |
+| 2 | Etiquetas de slots: `i1`, `i2`, `i3`, `i4` (compartidas por toda la hoja) |
+| 3 | Subcabecera por criterio: `=i1`, `=i2`, `=i3`, `=i4`, `FINAL` |
+| 4 | Pesos de los 4 slots (%, editables por unidad; ej. 20, 40, 20, 20) |
+| 5 | Codigo de criterio (`CR1.1`, `CR1.2`, etc.) en primera columna de bloque; `Rec` en ultima |
+| 6 | Formula de ponderacion del criterio (INDEX/MATCH sobre hoja `PESOS`) |
+| 7+ | Datos de alumnos: i1-i4 (manual), `FINAL` (formula SUMPRODUCT, solo lectura), `Rec` (manual) |
 
-Columnas de instrumentos:
+**Configuracion por unidad:** Desde `gestor-unidades.html` se pueden elegir que 4 instrumentos del catalogo ocupan los slots i1-i4 de cada unidad, y sus pesos (deben sumar 100%).
 
-| Columna | Contenido |
-| --- | --- |
-| `N` | Abreviatura |
-| `O` | Nombre |
+### Hojas de evaluacion (1ª EVA, 2ª EVA, 3ª EVA, FINAL, etc.)
 
-Hojas de evaluacion esperadas:
-
-- `1a EVA`
-- `2a EVA`
-- `3a EVA`
-- `FINAL`
-- Variantes como `2a EVA-solo` o `3a EVA-solo`, si existen en la plantilla.
-
-En las hojas de evaluacion:
+Layout sin cambios: layout de 2 columnas por criterio (nota CE + recuperacion).
 
 | Fila/columna | Uso |
 | --- | --- |
-| Fila 17 | Cabecera de criterios y notas |
-| Fila 18 | Subetiquetas de recuperacion |
+| Fila 17 | Cabecera: `NOTA CE`, `CR1.1`, `CR1.2`, ... |
+| Fila 18 | Subetiquetas: `Rec` bajo cada criterio |
 | Fila 19+ | Datos de alumnos |
-| Columna `CB` | Nota final |
+| Columna `CB` | Nota final de alumno |
+
+Las notas de criterio se populan automaticamente desde las hojas de unidad usando formulas que referencian el `FINAL` calculado de cada criterio en su unidad.
+
+## Evaluacion por instrumentos
+
+Cada criterio se evalua a traves de hasta 4 instrumentos que se ponderin segun los pesos configurados por unidad:
+
+1. **Instrumentos catalogo:** Se definen en `DATOS!N4:O13` (max. 10). Cada uno tiene abreviatura (ej. "Examen", "Tarea", "Observacion") y nombre completo.
+
+2. **Asignacion por unidad:** En `gestor-unidades.html` se seleccionan que 4 instrumentos del catalogo ocupan los slots i1-i4 de cada unidad, y se configuran sus pesos (0-100%, deben sumar 100%).
+
+3. **Introduccion de notas:** En `gestor-notas.html` se introducen las 4 notas de instrumento (i1-i4) para cada criterio y alumno. La nota `FINAL` se recalcula automaticamente usando SUMPRODUCT, ignorando slots vacios.
+
+4. **Formula FINAL:** `=IFERROR(SUMPRODUCT((i1:i4<>"")*pesos*i1:i4)/SUMPRODUCT((i1:i4<>"")*pesos),"")` — media ponderada que ignora slots vacios.
+
+5. **Propagacion a evaluaciones:** Tras guardar las notas de unidad con `syncEval:true` (opcion por defecto), el `FINAL` calculado se propaga a las hojas de evaluacion. Existe un boton "Resincronizar evaluacion" en `gestor-recuperaciones.html` para reparar desincronizaciones.
 
 ## Importacion de datos
 

@@ -1230,6 +1230,19 @@ fn excel_get_notas_evaluacion_alumno(payload: Value) -> Result<Value, String> {
     Ok(data)
 }
 
+// Dado un conjunto de celdas (columna, texto) de una fila de cabecera, extrae
+// los pares (codigo CR en mayusculas, columna) ordenados por columna. Pura y
+// testeable sin abrir ningun xlsx — reutilizada tanto para la lectura via XML
+// directo como para el fallback via calamine.
+fn cr_cols_from_cells(cells: impl Iterator<Item = (usize, String)>) -> Vec<(String, usize)> {
+    let mut sorted: Vec<(usize, String)> = cells.collect();
+    sorted.sort_by_key(|(ci, _)| *ci);
+    sorted.into_iter()
+        .filter(|(_, s)| is_cr_code(s))
+        .map(|(ci, s)| (s.to_uppercase(), ci))
+        .collect()
+}
+
 // Lee la nota final de la unidad (col E = índice 4).
 // Usa el primer bloque de prácticas para localizar name_col y first_student_row,
 // garantizando que leemos exactamente las mismas filas de alumnos que el resto del sistema.
@@ -1238,7 +1251,7 @@ fn load_notas_unidad(path: &str, unidad: &str) -> Result<Value, String> {
         .map_err(|_| format!("No se encontró la hoja \"{unidad}\"."))?;
     let unidades = list_unit_sheets(path)?;
 
-    let first_row: usize = 4; // fila 5 en Excel (0-indexed)
+    let first_row: usize = 6; // fila 7 en Excel (0-indexed) — layout con instrumentos por criterio
 
     // Cargar nombres desde load_alumnos (mismo código que el gestor de alumnos)
     let nombres_datos: Vec<String> = match load_alumnos(path) {
@@ -1250,32 +1263,47 @@ fn load_notas_unidad(path: &str, unidad: &str) -> Result<Value, String> {
         Err(_) => Vec::new(),
     };
 
-    // Detectar CRs en hoja Ux usando XML directo (calamine trunca columnas lejanas)
-    // Fila 3 en Excel = row_1=3 (1-indexed)
+    // Detectar CRs en hoja Ux usando XML directo (calamine trunca columnas lejanas
+    // en hojas anchas — la plantilla nueva llega hasta la columna ~601).
+    // Fila 5 en Excel = row_1=5 (cabecera de criterios en el layout con
+    // instrumentos por criterio); fallback fila 6 por si el layout varia.
     let mut cr_cols: Vec<(String, usize)> = Vec::new();
-    for check_row_1 in [3usize, 4usize] {
+    for check_row_1 in [5usize, 6usize] {
         let xml_row = read_row_from_xml(path, unidad, check_row_1);
         if !xml_row.is_empty() {
-            let mut sorted: Vec<(usize, String)> = xml_row.into_iter().collect();
-            sorted.sort_by_key(|(ci, _)| *ci);
-            for (ci, s) in sorted {
-                if is_cr_code(&s) { cr_cols.push((s.to_uppercase(), ci)); }
-            }
+            cr_cols = cr_cols_from_cells(xml_row.into_iter());
         }
         if !cr_cols.is_empty() { break; }
     }
-    // Fallback a calamine si XML falla
+    // Fallback a calamine si XML falla (sin tope de columna: la plantilla nueva
+    // tiene criterios mas alla de la columna 200 que usaba el tope antiguo).
     if cr_cols.is_empty() {
-        for check_ri in 2..=3 {
+        for check_ri in 4..=5usize {
             if let Some(row) = rows.get(check_ri) {
-                for ci in 0..row.len().min(200) {
-                    let s = cell_val_str(row.get(ci).unwrap_or(&Value::Null));
-                    if is_cr_code(&s) { cr_cols.push((s.to_uppercase(), ci)); }
-                }
+                let cells = row.iter().enumerate().map(|(ci, v)| (ci, cell_val_str(v)));
+                cr_cols = cr_cols_from_cells(cells);
             }
             if !cr_cols.is_empty() { break; }
         }
     }
+
+    // Instrumentos de la unidad: fila 2 (etiquetas) y fila 4 (pesos), columnas
+    // C:F (0-idx 2..6) — globales para toda la hoja, compartidos por todos los
+    // criterios (no hay una fila 2/4 por bloque, todos los bloques referencian
+    // estas mismas 4 celdas via formula '=$C$2' etc.).
+    let instrument_weights: [f64; 4] = [
+        cell_f64(&rows, 3, 2).unwrap_or(0.0),
+        cell_f64(&rows, 3, 3).unwrap_or(0.0),
+        cell_f64(&rows, 3, 4).unwrap_or(0.0),
+        cell_f64(&rows, 3, 5).unwrap_or(0.0),
+    ];
+    let instrumentos_unidad: Vec<Value> = (0..4usize).map(|slot| {
+        json!({
+            "slot": slot,
+            "abrev": cell_str(&rows, 1, 2 + slot),
+            "peso": instrument_weights[slot],
+        })
+    }).collect();
 
     // Leer ponderaciones de PESOS usando XML directo para ambas filas (CR map y valores de unidad)
     let ponderaciones_por_cr: std::collections::HashMap<String, f64> = {
@@ -1330,11 +1358,12 @@ fn load_notas_unidad(path: &str, unidad: &str) -> Result<Value, String> {
     let criterios_json: Vec<Value> = cr_cols.iter()
         .map(|(code, ci)| {
             let ponderacion = ponderaciones_por_cr.get(code).copied().unwrap_or(0.0);
-            json!({ "codigo": code, "colIdx": ci, "recColIdx": ci + 1, "ponderacion": ponderacion })
+            json!({ "codigo": code, "colIdx": ci, "recColIdx": ci + 5, "ponderacion": ponderacion })
         })
         .collect();
 
-    // Rec: se guarda en la propia hoja de unidad, en la columna adyacente (ci+1) a cada CR.
+    // Rec: se guarda en la propia hoja de unidad, en la columna ci+5 de cada bloque de criterio
+    // (bloque = i1,i2,i3,i4,FINAL,Rec).
     let mut alumnos: Vec<Value> = Vec::new();
     let max_alumnos = nombres_datos.len().max(37);
     for ri in first_row..(first_row + max_alumnos).min(rows.len()) {
@@ -1343,10 +1372,18 @@ fn load_notas_unidad(path: &str, unidad: &str) -> Result<Value, String> {
         if nombre.is_empty() { break; }
 
         let cr_notas: Vec<Value> = cr_cols.iter().map(|(code, ci)| {
-            let n = cell_f64(&rows, ri, *ci);
-            let d = cell_str(&rows, ri, *ci);
-            let rec_display = cell_str(&rows, ri, *ci + 1);
-            json!({ "codigo": code, "colIdx": ci, "recColIdx": ci + 1, "nota": n, "display": d, "recDisplay": rec_display })
+            let i1 = cell_f64(&rows, ri, *ci);
+            let i2 = cell_f64(&rows, ri, *ci + 1);
+            let i3 = cell_f64(&rows, ri, *ci + 2);
+            let i4 = cell_f64(&rows, ri, *ci + 3);
+            let final_val = compute_final_weighted([i1, i2, i3, i4], instrument_weights);
+            let rec_display = cell_str(&rows, ri, *ci + 5);
+            json!({
+                "codigo": code, "colIdx": ci,
+                "i1": i1, "i2": i2, "i3": i3, "i4": i4,
+                "final": final_val,
+                "recDisplay": rec_display
+            })
         }).collect();
 
         alumnos.push(json!({ "nombre": nombre, "rowIdx": ri, "crNotas": cr_notas }));
@@ -1354,7 +1391,11 @@ fn load_notas_unidad(path: &str, unidad: &str) -> Result<Value, String> {
 
     let titulo = cell_str(&rows, 2, 0);
     let file_name = Path::new(path).file_name().unwrap_or_default().to_string_lossy().to_string();
-    Ok(json!({ "filePath": path, "fileName": file_name, "unidad": unidad, "titulo": titulo, "unidades": unidades, "criterios": criterios_json, "alumnos": alumnos }))
+    Ok(json!({
+        "filePath": path, "fileName": file_name, "unidad": unidad, "titulo": titulo,
+        "unidades": unidades, "criterios": criterios_json, "instrumentosUnidad": instrumentos_unidad,
+        "alumnos": alumnos
+    }))
 }
 
 #[tauri::command]
@@ -2048,6 +2089,22 @@ fn save_rraa_criterios_to_file(_rraa: &[Value], criterios: &[Value], pond_unidad
 // save_notas_actividad
 // ---------------------------------------------------------------------------
 
+// Replica SUMPRODUCT((vals<>"")*pesos*vals)/SUMPRODUCT((vals<>"")*pesos) de la
+// plantilla: media ponderada de hasta 4 instrumentos, ignorando los que estan
+// vacios (None) tanto en el numerador como en el denominador. Un valor 0
+// explicito SI cuenta (distinto de vacio, igual que en Excel "0" <> "").
+fn compute_final_weighted(values: [Option<f64>; 4], weights: [f64; 4]) -> Option<f64> {
+    let mut num = 0.0;
+    let mut den = 0.0;
+    for i in 0..4 {
+        if let Some(v) = values[i] {
+            num += weights[i] * v;
+            den += weights[i];
+        }
+    }
+    if den == 0.0 { None } else { Some(num / den) }
+}
+
 fn normalize_grade(value: &Value) -> Option<f64> {
     match value {
         Value::Number(n) => n.as_f64(),
@@ -2237,8 +2294,114 @@ async fn excel_save_notas_unidad(payload: Value) -> Result<Value, String> {
         .map_err(|e| e.to_string())?
 }
 
+// Tras guardar la hoja de unidad, relee los valores i1..i4 ya persistidos y
+// calcula el FINAL de cada criterio tocado en este guardado, para
+// propagarlo al cache de las hojas de evaluacion via build_eval_sheet_edits
+// (que no sabe nada de instrumentos, solo espera {nota, rec} por criterio).
+fn build_notas_for_eval_sync(path: &str, unidad: &str, notas: &[Value]) -> Result<Vec<Value>, String> {
+    let rows = read_sheet_rows(path, unidad).map_err(|_| format!("No se encontró la hoja \"{unidad}\"."))?;
+    let weights: [f64; 4] = [
+        cell_f64(&rows, 3, 2).unwrap_or(0.0),
+        cell_f64(&rows, 3, 3).unwrap_or(0.0),
+        cell_f64(&rows, 3, 4).unwrap_or(0.0),
+        cell_f64(&rows, 3, 5).unwrap_or(0.0),
+    ];
+
+    let out: Vec<Value> = notas.iter().filter_map(|nota_item| {
+        let ri = nota_item["rowIdx"].as_u64()? as usize;
+        let cr_notas = nota_item["crNotas"].as_object()?;
+        let mut cr_obj = serde_json::Map::new();
+        for (code, val_obj) in cr_notas {
+            let ci = val_obj.get("colIdx")?.as_u64()? as usize;
+            let values = [
+                cell_f64(&rows, ri, ci),
+                cell_f64(&rows, ri, ci + 1),
+                cell_f64(&rows, ri, ci + 2),
+                cell_f64(&rows, ri, ci + 3),
+            ];
+            let final_val = compute_final_weighted(values, weights);
+            let mut entry = serde_json::Map::new();
+            entry.insert("colIdx".to_string(), json!(ci));
+            entry.insert("nota".to_string(), json!(final_val));
+            if let Some(rec_val) = val_obj.get("rec") {
+                entry.insert("rec".to_string(), rec_val.clone());
+            }
+            cr_obj.insert(code.clone(), Value::Object(entry));
+        }
+        Some(json!({ "rowIdx": ri, "crNotas": Value::Object(cr_obj) }))
+    }).collect();
+    Ok(out)
+}
+
+// Valida el payload de excel_save_unidad_instrumentos: maximo 4 slots (limite
+// estructural de columnas del template), cada abreviatura debe existir en el
+// catalogo de Instrumentos (DATOS!N5:O13), y los pesos deben sumar 100%
+// (tolerancia 0.001 por redondeos de coma flotante).
+fn validate_unidad_instrumentos(slots: &[Value], catalogo_abrevs: &[String]) -> Result<(), String> {
+    if slots.len() > 4 {
+        return Err(format!("Máximo 4 instrumentos por unidad, se han recibido {}.", slots.len()));
+    }
+    let mut suma = 0.0;
+    for slot in slots {
+        let abrev = slot["abrev"].as_str().unwrap_or("");
+        if !catalogo_abrevs.iter().any(|a| a == abrev) {
+            return Err(format!("El instrumento \"{abrev}\" no existe en el catálogo de Instrumentos."));
+        }
+        suma += slot["peso"].as_f64().unwrap_or(0.0);
+    }
+    if (suma - 1.0).abs() > 0.001 {
+        return Err(format!("Los pesos deben sumar 100% (suman {:.1}%).", suma * 100.0));
+    }
+    Ok(())
+}
+
+fn excel_save_unidad_instrumentos_impl(payload: Value) -> Result<Value, String> {
+    let path = require_selected_path()?;
+    let unidad = payload["unidad"].as_str().ok_or("Falta unidad")?.to_string();
+    let slots = payload["slots"].as_array().ok_or("Falta slots")?.clone();
+
+    let catalogo = load_instrumentos(&path)?;
+    let catalogo_abrevs: Vec<String> = catalogo["instrumentos"].as_array().unwrap_or(&vec![])
+        .iter().filter_map(|i| i["codigo"].as_str().map(|s| s.to_string())).collect();
+    validate_unidad_instrumentos(&slots, &catalogo_abrevs)?;
+
+    let slots_owned = slots.clone();
+    edit_workbook_sheets_xml(&path, vec![(unidad.as_str(), Box::new(move |xml: &str| {
+        let mut s = xml.to_string();
+        for i in 0..4usize {
+            let ci = 2 + i; // columnas C:F (0-idx 2..6)
+            match slots_owned.get(i) {
+                Some(slot) => {
+                    let abrev = slot["abrev"].as_str().unwrap_or("");
+                    let peso = slot["peso"].as_f64().unwrap_or(0.0);
+                    s = set_xml_cell(&s, 1, ci, Some(&json!(abrev)), "text")?; // fila 2 (0-idx 1)
+                    s = set_xml_cell(&s, 3, ci, Some(&json!(peso)), "number")?; // fila 4 (0-idx 3)
+                }
+                None => {
+                    s = set_xml_cell(&s, 1, ci, None, "text")?;
+                    s = set_xml_cell(&s, 3, ci, None, "number")?;
+                }
+            }
+        }
+        Ok(s)
+    }) as Box<dyn Fn(&str) -> Result<String, String>>)])?;
+
+    load_notas_unidad(&path, &unidad)
+}
+
+#[tauri::command]
+async fn excel_save_unidad_instrumentos(payload: Value) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || excel_save_unidad_instrumentos_impl(payload))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 fn excel_save_notas_unidad_impl(payload: Value) -> Result<Value, String> {
     let path = require_selected_path()?;
+    excel_save_notas_unidad_impl_with_path(&path, payload)
+}
+
+fn excel_save_notas_unidad_impl_with_path(path: &str, payload: Value) -> Result<Value, String> {
     let unidad = payload["unidad"].as_str().ok_or("Falta unidad")?.to_string();
     let notas = payload["notas"].as_array().ok_or("Falta notas")?.clone();
     // syncEval=false: guardado ligero (1 celda, sin recalcular caché de evaluación ni
@@ -2246,7 +2409,6 @@ fn excel_save_notas_unidad_impl(payload: Value) -> Result<Value, String> {
     // bloquear la escritura mientras el usuario sigue tecleando.
     let sync_eval = payload["syncEval"].as_bool().unwrap_or(true);
     let notas_for_unit = notas.clone();
-    let notas_for_eval = notas.clone();
 
     let unit_edit_fn: Box<dyn Fn(&str) -> Result<String, String>> = Box::new(move |xml: &str| {
         let mut s = xml.to_string();
@@ -2254,18 +2416,21 @@ fn excel_save_notas_unidad_impl(payload: Value) -> Result<Value, String> {
             if let Some(ri) = nota_item["rowIdx"].as_u64().map(|n| n as usize) {
                 if let Some(cr_notas) = nota_item["crNotas"].as_object() {
                     for (_code, val_obj) in cr_notas {
-                        if let Some(ci) = val_obj.get("colIdx").and_then(|v| v.as_u64()).map(|n| n as usize) {
-                            if let Some(val) = val_obj.get("nota") {
+                        let Some(ci) = val_obj.get("colIdx").and_then(|v| v.as_u64()).map(|n| n as usize) else { continue };
+                        // Bloque de 6 columnas: ci=i1, ci+1=i2, ci+2=i3, ci+3=i4,
+                        // ci+4=FINAL (formula, NUNCA se escribe), ci+5=Rec.
+                        for (offset, key) in [(0usize, "i1"), (1, "i2"), (2, "i3"), (3, "i4")] {
+                            if let Some(val) = val_obj.get(key) {
                                 match normalize_grade(val) {
-                                    Some(n) => { s = set_xml_cell(&s, ri, ci, Some(&json!(n)), "number")?; }
-                                    None    => { s = set_xml_cell(&s, ri, ci, None, "number")?; }
+                                    Some(n) => { s = set_xml_cell(&s, ri, ci + offset, Some(&json!(n)), "number")?; }
+                                    None    => { s = set_xml_cell(&s, ri, ci + offset, None, "number")?; }
                                 }
                             }
-                            if let Some(val) = val_obj.get("rec") {
-                                match normalize_grade(val) {
-                                    Some(n) => { s = set_xml_cell(&s, ri, ci + 1, Some(&json!(n)), "number")?; }
-                                    None    => { s = set_xml_cell(&s, ri, ci + 1, None, "number")?; }
-                                }
+                        }
+                        if let Some(val) = val_obj.get("rec") {
+                            match normalize_grade(val) {
+                                Some(n) => { s = set_xml_cell(&s, ri, ci + 5, Some(&json!(n)), "number")?; }
+                                None    => { s = set_xml_cell(&s, ri, ci + 5, None, "number")?; }
                             }
                         }
                     }
@@ -2278,26 +2443,27 @@ fn excel_save_notas_unidad_impl(payload: Value) -> Result<Value, String> {
     // El guardado del propio Rec/nota en la hoja de unidad va SIEMPRE primero y por
     // separado: debe quedar en disco aunque la sincronizacion con las hojas de
     // evaluacion (mas fragil: varias hojas, layouts variables) falle.
-    edit_workbook_sheets_xml(&path, vec![(unidad.as_str(), unit_edit_fn)])?;
+    edit_workbook_sheets_xml(path, vec![(unidad.as_str(), unit_edit_fn)])?;
 
     if !sync_eval {
+        // Guardado ligero (autosave por celda): no releer/recalcular la unidad
+        // entera para no bloquear la escritura mientras el usuario sigue
+        // tecleando — mismo comportamiento que la version anterior.
         return Ok(Value::Null);
     }
 
-    // Hojas de evaluacion afectadas: se editan y se escriben en UNA sola pasada de
-    // zip (antes se repetia una vez por hoja, bloqueando el autoguardado). Un fallo
-    // aqui no debe perder el guardado de la unidad, que ya esta en disco.
-    let eval_edits = build_eval_sheet_edits(&path, &unidad, &notas_for_eval)?;
+    let notas_for_eval = build_notas_for_eval_sync(path, &unidad, &notas)?;
+    let eval_edits = build_eval_sheet_edits(path, &unidad, &notas_for_eval)?;
     if !eval_edits.is_empty() {
         let (eval_names, eval_fns): (Vec<String>, Vec<Box<dyn Fn(&str) -> Result<String, String>>>) = eval_edits.into_iter().unzip();
         let all_eval_edits: Vec<(&str, Box<dyn Fn(&str) -> Result<String, String>>)> = eval_names.iter()
             .zip(eval_fns.into_iter())
             .map(|(name, f)| (name.as_str(), f))
             .collect();
-        edit_workbook_sheets_xml(&path, all_eval_edits)?;
+        edit_workbook_sheets_xml(path, all_eval_edits)?;
     }
 
-    load_notas_unidad(&path, &unidad)
+    load_notas_unidad(path, &unidad)
 }
 
 // Vuelve a propagar TODAS las notas/Rec ya guardados en una hoja de unidad hacia
@@ -2315,9 +2481,13 @@ async fn excel_resync_unidad_eval(payload: Value) -> Result<Value, String> {
 
 fn excel_resync_unidad_eval_impl(payload: Value) -> Result<Value, String> {
     let path = require_selected_path()?;
+    excel_resync_unidad_eval_impl_with_path(&path, payload)
+}
+
+fn excel_resync_unidad_eval_impl_with_path(path: &str, payload: Value) -> Result<Value, String> {
     let unidad = payload["unidad"].as_str().ok_or("Falta unidad")?.to_string();
 
-    let unit_data = load_notas_unidad(&path, &unidad)?;
+    let unit_data = load_notas_unidad(path, &unidad)?;
     let alumnos = unit_data["alumnos"].as_array().cloned().unwrap_or_default();
 
     let notas: Vec<Value> = alumnos.iter().filter_map(|a| {
@@ -2329,7 +2499,7 @@ fn excel_resync_unidad_eval_impl(payload: Value) -> Result<Value, String> {
             let col_idx = cr["colIdx"].as_u64()?;
             let mut entry = serde_json::Map::new();
             entry.insert("colIdx".to_string(), json!(col_idx));
-            if let Some(n) = cr["nota"].as_f64() { entry.insert("nota".to_string(), json!(n)); }
+            if let Some(n) = cr["final"].as_f64() { entry.insert("nota".to_string(), json!(n)); }
             let rec_str = cr["recDisplay"].as_str().unwrap_or("").trim().replace(',', ".");
             if let Ok(v) = rec_str.parse::<f64>() { entry.insert("rec".to_string(), json!(v)); }
             cr_obj.insert(codigo, Value::Object(entry));
@@ -2337,7 +2507,7 @@ fn excel_resync_unidad_eval_impl(payload: Value) -> Result<Value, String> {
         Some(json!({ "rowIdx": row_idx, "crNotas": Value::Object(cr_obj) }))
     }).collect();
 
-    let eval_edits = build_eval_sheet_edits(&path, &unidad, &notas)?;
+    let eval_edits = build_eval_sheet_edits(path, &unidad, &notas)?;
     let hojas_afectadas = eval_edits.len();
     if !eval_edits.is_empty() {
         let (eval_names, eval_fns): (Vec<String>, Vec<Box<dyn Fn(&str) -> Result<String, String>>>) = eval_edits.into_iter().unzip();
@@ -2345,7 +2515,7 @@ fn excel_resync_unidad_eval_impl(payload: Value) -> Result<Value, String> {
             .zip(eval_fns.into_iter())
             .map(|(name, f)| (name.as_str(), f))
             .collect();
-        edit_workbook_sheets_xml(&path, all_eval_edits)?;
+        edit_workbook_sheets_xml(path, all_eval_edits)?;
     }
 
     Ok(json!({ "unidad": unidad, "alumnos": notas.len(), "hojasAfectadas": hojas_afectadas }))
@@ -3090,6 +3260,314 @@ mod eval_layout_tests {
 
 }
 
+#[cfg(test)]
+mod final_weighted_tests {
+    use super::*;
+
+    // Replica la fórmula real de la plantilla (U1!L7):
+    // =IFERROR(SUMPRODUCT((H7:K7<>"")*C$4:F$4*H7:K7)/SUMPRODUCT((H7:K7<>"")*C$4:F$4),"")
+    const PESOS_REALES: [f64; 4] = [0.2, 0.4, 0.2, 0.2];
+
+    #[test]
+    fn media_ponderada_con_los_4_instrumentos() {
+        let values = [Some(8.0), Some(7.0), Some(9.0), Some(6.0)];
+        let result = compute_final_weighted(values, PESOS_REALES);
+        // (0.2*8 + 0.4*7 + 0.2*9 + 0.2*6) / (0.2+0.4+0.2+0.2) = 7.4 / 1.0
+        assert_eq!(result, Some(7.4));
+    }
+
+    #[test]
+    fn ignora_instrumentos_vacios_en_numerador_y_denominador() {
+        let values = [Some(8.0), None, Some(9.0), Some(6.0)];
+        let result = compute_final_weighted(values, PESOS_REALES);
+        // (0.2*8 + 0.2*9 + 0.2*6) / (0.2+0.2+0.2) = 4.6 / 0.6 = 7.666...
+        assert!((result.unwrap() - 7.6666666666666).abs() < 1e-9);
+    }
+
+    #[test]
+    fn valor_cero_explicito_cuenta_distinto_de_vacio() {
+        // Un 0 tecleado SI cuenta (no es "" en Excel); solo None (celda vacia) se ignora.
+        let values = [Some(0.0), None, None, None];
+        let result = compute_final_weighted(values, PESOS_REALES);
+        assert_eq!(result, Some(0.0));
+    }
+
+    #[test]
+    fn todos_vacios_devuelve_none() {
+        let result = compute_final_weighted([None, None, None, None], PESOS_REALES);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn peso_cero_en_slot_presente_no_distorsiona_el_resto() {
+        let values = [Some(10.0), Some(4.0), None, None];
+        let weights = [0.0, 0.5, 0.3, 0.2];
+        let result = compute_final_weighted(values, weights);
+        // (0*10 + 0.5*4) / (0 + 0.5) = 2.0 / 0.5 = 4.0
+        assert_eq!(result, Some(4.0));
+    }
+}
+
+#[cfg(test)]
+mod cr_cols_tests {
+    use super::*;
+
+    #[test]
+    fn extrae_codigos_cr_ordenados_por_columna() {
+        let cells = vec![
+            (13usize, "CR1.2".to_string()),
+            (7usize, "CR1.1".to_string()),
+            (2usize, "Alumno".to_string()),
+        ];
+        let result = cr_cols_from_cells(cells.into_iter());
+        assert_eq!(result, vec![
+            ("CR1.1".to_string(), 7),
+            ("CR1.2".to_string(), 13),
+        ]);
+    }
+
+    #[test]
+    fn normaliza_a_mayusculas() {
+        let cells = vec![(7usize, "cr1.1".to_string())];
+        let result = cr_cols_from_cells(cells.into_iter());
+        assert_eq!(result, vec![("CR1.1".to_string(), 7)]);
+    }
+
+    #[test]
+    fn ignora_celdas_que_no_son_codigo_cr() {
+        let cells = vec![
+            (0usize, "Alumno".to_string()),
+            (7usize, "CR1.1".to_string()),
+            (12usize, "Rec".to_string()),
+            (13usize, "FINAL".to_string()),
+        ];
+        let result = cr_cols_from_cells(cells.into_iter());
+        assert_eq!(result, vec![("CR1.1".to_string(), 7)]);
+    }
+
+    #[test]
+    fn fila_sin_codigos_devuelve_vacio() {
+        let cells = vec![(0usize, "nota final unidad".to_string())];
+        assert_eq!(cr_cols_from_cells(cells.into_iter()), Vec::<(String, usize)>::new());
+    }
+}
+
+#[cfg(test)]
+mod load_notas_unidad_tests {
+    use super::*;
+
+    // Fixture real committeado en la raiz del repo (mismo archivo que usa la app
+    // como plantilla vacia). Verificado a mano con openpyxl: hoja U1, 100
+    // criterios (CE1..CE10 x 10 CR), primer colIdx=7 (columna H), ultimo
+    // colIdx=601, pesos fila4 C:F=[0.2,0.4,0.2,0.2], etiquetas fila2 C:F=
+    // ["i1","i2","i3","i4"].
+    fn fixture_path() -> String {
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../Plantilla_Notas_ESO.xlsx").to_string()
+    }
+
+    #[test]
+    fn lee_100_criterios_de_u1_con_offsets_correctos() {
+        let data = load_notas_unidad(&fixture_path(), "U1").expect("debe cargar U1");
+        let criterios = data["criterios"].as_array().expect("criterios debe ser array");
+        assert_eq!(criterios.len(), 100, "U1 tiene 100 criterios (CE1..CE10 x 10): {criterios:?}");
+
+        let primero = &criterios[0];
+        assert_eq!(primero["codigo"], "CR1.1");
+        assert_eq!(primero["colIdx"], 7);
+
+        let ultimo = criterios.last().unwrap();
+        assert_eq!(ultimo["codigo"], "CR10.10");
+        assert_eq!(ultimo["colIdx"], 601);
+    }
+
+    #[test]
+    fn lee_instrumentos_y_pesos_de_la_unidad() {
+        let data = load_notas_unidad(&fixture_path(), "U1").expect("debe cargar U1");
+        let instrumentos = data["instrumentosUnidad"].as_array().expect("debe existir instrumentosUnidad");
+        assert_eq!(instrumentos.len(), 4);
+        let pesos: Vec<f64> = instrumentos.iter().map(|i| i["peso"].as_f64().unwrap()).collect();
+        assert_eq!(pesos, vec![0.2, 0.4, 0.2, 0.2]);
+        let abrevs: Vec<String> = instrumentos.iter().map(|i| i["abrev"].as_str().unwrap().to_string()).collect();
+        assert_eq!(abrevs, vec!["i1", "i2", "i3", "i4"]);
+    }
+
+    #[test]
+    fn alumnos_empiezan_en_fila_indice_6() {
+        let data = load_notas_unidad(&fixture_path(), "U1").expect("debe cargar U1");
+        let alumnos = data["alumnos"].as_array().expect("alumnos debe ser array");
+        assert!(!alumnos.is_empty(), "la plantilla trae alumnos de ejemplo");
+        assert_eq!(alumnos[0]["rowIdx"], 6, "primer alumno en fila Excel 7 = indice 6");
+    }
+
+    #[test]
+    fn cada_criterio_de_alumno_trae_i1_i4_final_y_rec() {
+        let data = load_notas_unidad(&fixture_path(), "U1").expect("debe cargar U1");
+        let alumno = &data["alumnos"][0];
+        let cr = alumno["crNotas"].as_array().unwrap().iter()
+            .find(|c| c["codigo"] == "CR1.1")
+            .expect("CR1.1 debe estar presente");
+        for campo in ["i1", "i2", "i3", "i4", "final", "recDisplay"] {
+            assert!(cr.get(campo).is_some(), "falta el campo {campo} en {cr:?}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod save_notas_unidad_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+
+    // Copia el fixture real a un archivo temporal unico por test, para que cada
+    // test pueda escribir sin pisar al fixture committeado ni a otros tests que
+    // corran en paralelo (cargo test corre tests en threads distintos por
+    // defecto).
+    fn copia_fixture_temporal() -> String {
+        let src = concat!(env!("CARGO_MANIFEST_DIR"), "/../Plantilla_Notas_ESO.xlsx");
+        let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+        let dst = std::env::temp_dir().join(format!("test_save_notas_unidad_{n}_{}.xlsx", std::process::id()));
+        std::fs::copy(src, &dst).expect("debe poder copiar el fixture");
+        dst.to_string_lossy().to_string()
+    }
+
+    #[test]
+    fn guarda_i1_i4_y_rec_en_las_columnas_correctas_y_no_toca_final() {
+        let path = copia_fixture_temporal();
+
+        // CR1.1 en U1 tiene colIdx=7 (verificado en load_notas_unidad_tests).
+        // Bloque: 7=i1, 8=i2, 9=i3, 10=i4, 11=FINAL (formula, no se toca), 12=Rec.
+        let payload = json!({
+            "unidad": "U1",
+            "syncEval": false,
+            "notas": [
+                { "rowIdx": 6, "crNotas": {
+                    "CR1.1": { "colIdx": 7, "i1": 8.0, "i2": 7.0, "i3": 9.0, "i4": 6.0, "rec": 5.0 }
+                }}
+            ]
+        });
+        excel_save_notas_unidad_impl_with_path(&path, payload).expect("debe guardar");
+
+        let data = load_notas_unidad(&path, "U1").expect("debe releer U1");
+        let alumno = &data["alumnos"][0];
+        let cr = alumno["crNotas"].as_array().unwrap().iter()
+            .find(|c| c["codigo"] == "CR1.1").unwrap();
+        assert_eq!(cr["i1"], 8.0);
+        assert_eq!(cr["i2"], 7.0);
+        assert_eq!(cr["i3"], 9.0);
+        assert_eq!(cr["i4"], 6.0);
+        // FINAL se recalcula en Rust con los mismos pesos que Excel (0.2/0.4/0.2/0.2):
+        // (0.2*8 + 0.4*7 + 0.2*9 + 0.2*6) / 1.0 = 7.4
+        assert!((cr["final"].as_f64().unwrap() - 7.4).abs() < 1e-9);
+        assert_eq!(cr["recDisplay"], "5");
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn sincroniza_el_final_calculado_hacia_las_hojas_de_evaluacion() {
+        let path = copia_fixture_temporal();
+
+        let payload = json!({
+            "unidad": "U1",
+            "syncEval": true,
+            "notas": [
+                { "rowIdx": 6, "crNotas": {
+                    "CR1.1": { "colIdx": 7, "i1": 8.0, "i2": 7.0, "i3": 9.0, "i4": 6.0 }
+                }}
+            ]
+        });
+        let result = excel_save_notas_unidad_impl_with_path(&path, payload).expect("debe guardar y sincronizar");
+
+        // load_notas_unidad tras el guardado confirma que el FINAL persistido es 7.4
+        let alumno = &result["alumnos"][0];
+        let cr = alumno["crNotas"].as_array().unwrap().iter()
+            .find(|c| c["codigo"] == "CR1.1").unwrap();
+        assert!((cr["final"].as_f64().unwrap() - 7.4).abs() < 1e-9);
+
+        // Ademas confirma que build_eval_sheet_edits realmente escribio el cache
+        // en la hoja de evaluacion "1ª EVA" (U1 esta asignada a evaluacion "1ª"
+        // en la tabla Unidades del fixture). "Alumn 1" (U1 rowIdx=6) es el primer
+        // alumno de la hoja de evaluacion: cabecera CR1.1 en fila 17 Excel
+        // (0-idx 16, col D / 0-idx 3), datos desde fila 19 Excel (0-idx 18).
+        // Verificado leyendo el fixture con read_sheet_rows/find_evaluation_layout_indices.
+        let eva_rows = read_sheet_rows(&path, "1ª EVA").expect("debe leer la hoja de evaluacion");
+        assert_eq!(cell_str(&eva_rows, 18, 0), "Alumn 1");
+        let cached = cell_f64(&eva_rows, 18, 3).expect("CR1.1 debe tener un valor cacheado en 1ª EVA");
+        assert!((cached - 7.4).abs() < 1e-9, "el cache de CR1.1 en 1ª EVA debe ser 7.4, fue {cached}");
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn build_notas_for_eval_sync_pasa_null_al_vaciar_todos_los_instrumentos() {
+        let path = copia_fixture_temporal();
+
+        // Primero rellena CR1.1 para tener algo que vaciar despues.
+        let relleno = json!({ "unidad": "U1", "syncEval": false, "notas": [
+            { "rowIdx": 6, "crNotas": { "CR1.1": { "colIdx": 7, "i1": 8.0, "i2": 7.0, "i3": 9.0, "i4": 6.0 } } }
+        ]});
+        excel_save_notas_unidad_impl_with_path(&path, relleno).expect("relleno inicial");
+
+        // Vacia los 4 instrumentos (equivalente a borrar el contenido de las celdas).
+        let vacio = json!({ "unidad": "U1", "syncEval": false, "notas": [
+            { "rowIdx": 6, "crNotas": { "CR1.1": { "colIdx": 7, "i1": null, "i2": null, "i3": null, "i4": null } } }
+        ]});
+        excel_save_notas_unidad_impl_with_path(&path, vacio).expect("vaciado");
+
+        let notas_eval = build_notas_for_eval_sync(&path, "U1", &json!([
+            { "rowIdx": 6, "crNotas": { "CR1.1": { "colIdx": 7 } } }
+        ]).as_array().unwrap().to_vec()).expect("debe calcular sync");
+
+        let entry = &notas_eval[0]["crNotas"]["CR1.1"];
+        let obj = entry.as_object().expect("crNotas CR1.1 entry debe ser un objeto");
+        assert!(obj.contains_key("nota"), "la clave 'nota' debe estar presente (aunque sea null) para que build_eval_sheet_edits limpie el cache: {entry:?}");
+        assert!(obj["nota"].is_null(), "el valor debe ser null (FINAL no computable, todos los instrumentos vacios): {entry:?}");
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn resync_unidad_eval_propaga_el_final_leyendo_el_campo_final_no_nota() {
+        let path = copia_fixture_temporal();
+
+        // Guarda i1-i4 de CR1.1 en U1 con syncEval:false, simulando el escenario
+        // que excel_resync_unidad_eval_impl existe para reparar: los datos quedan
+        // en la hoja de unidad pero NUNCA se propagan a la hoja de evaluacion.
+        let payload = json!({
+            "unidad": "U1",
+            "syncEval": false,
+            "notas": [
+                { "rowIdx": 6, "crNotas": {
+                    "CR1.1": { "colIdx": 7, "i1": 8.0, "i2": 7.0, "i3": 9.0, "i4": 6.0 }
+                }}
+            ]
+        });
+        excel_save_notas_unidad_impl_with_path(&path, payload).expect("debe guardar sin sincronizar");
+
+        // Antes del resync, la hoja de evaluacion NO tiene el valor propagado.
+        let eva_rows_antes = read_sheet_rows(&path, "1ª EVA").expect("debe leer la hoja de evaluacion");
+        assert_eq!(cell_str(&eva_rows_antes, 18, 0), "Alumn 1");
+        let cached_antes = cell_f64(&eva_rows_antes, 18, 3);
+        assert!(
+            cached_antes.is_none() || (cached_antes.unwrap() - 7.4).abs() > 1e-9,
+            "sin resync, CR1.1 en 1ª EVA no debe reflejar todavia el 7.4 recien guardado"
+        );
+
+        // excel_resync_unidad_eval_impl_with_path debe reparar la propagacion
+        // pendiente, leyendo el campo "final" (no "nota", que ya no existe en
+        // crNotas desde que load_notas_unidad devuelve i1..i4 + final).
+        excel_resync_unidad_eval_impl_with_path(&path, json!({ "unidad": "U1" }))
+            .expect("debe resincronizar");
+
+        let eva_rows = read_sheet_rows(&path, "1ª EVA").expect("debe releer la hoja de evaluacion");
+        let cached = cell_f64(&eva_rows, 18, 3).expect("CR1.1 debe tener un valor cacheado en 1ª EVA tras el resync");
+        assert!((cached - 7.4).abs() < 1e-9, "el cache de CR1.1 en 1ª EVA debe ser 7.4 tras el resync, fue {cached}");
+
+        std::fs::remove_file(&path).ok();
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
@@ -3099,10 +3577,55 @@ fn main() {
             excel_get_notas_actividad, excel_get_notas_actividades_tipo,
             excel_save_notas_actividad, excel_save_ce_notas, excel_add_actividad,
             excel_get_notas_evaluacion, excel_get_notas_evaluacion_alumno,
-            excel_get_notas_unidad, excel_save_notas_unidad, excel_resync_unidad_eval, excel_get_alumnos_informes, app_open_external,
+            excel_get_notas_unidad, excel_save_notas_unidad, excel_save_unidad_instrumentos, excel_resync_unidad_eval, excel_get_alumnos_informes, app_open_external,
             excel_get_diario, excel_save_diario_entrada, excel_delete_diario_entrada,
             excel_get_instrumentos, excel_save_instrumentos, save_csv_template, excel_download_template
         ])
         .run(tauri::generate_context!())
         .expect("error al ejecutar la aplicacion Tauri");
+}
+
+#[cfg(test)]
+mod unidad_instrumentos_tests {
+    use super::*;
+
+    #[test]
+    fn rechaza_si_los_pesos_no_suman_100_por_ciento() {
+        let slots = vec![
+            json!({"abrev": "PE", "peso": 0.5}),
+            json!({"abrev": "TD", "peso": 0.3}),
+        ];
+        let catalogo = vec!["PE".to_string(), "TD".to_string(), "TI".to_string()];
+        let result = validate_unidad_instrumentos(&slots, &catalogo);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("100"), "el mensaje debe explicar que falta sumar 100%");
+    }
+
+    #[test]
+    fn acepta_pesos_que_suman_100_por_ciento() {
+        let slots = vec![
+            json!({"abrev": "PE", "peso": 0.2}),
+            json!({"abrev": "TD", "peso": 0.4}),
+            json!({"abrev": "TI", "peso": 0.2}),
+            json!({"abrev": "TG", "peso": 0.2}),
+        ];
+        let catalogo = vec!["PE".to_string(), "TD".to_string(), "TI".to_string(), "TG".to_string()];
+        assert!(validate_unidad_instrumentos(&slots, &catalogo).is_ok());
+    }
+
+    #[test]
+    fn rechaza_abreviatura_que_no_esta_en_el_catalogo() {
+        let slots = vec![json!({"abrev": "ZZ", "peso": 1.0})];
+        let catalogo = vec!["PE".to_string(), "TD".to_string()];
+        let result = validate_unidad_instrumentos(&slots, &catalogo);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("ZZ"));
+    }
+
+    #[test]
+    fn rechaza_mas_de_4_slots() {
+        let slots: Vec<Value> = (0..5).map(|_| json!({"abrev": "PE", "peso": 0.2})).collect();
+        let catalogo = vec!["PE".to_string()];
+        assert!(validate_unidad_instrumentos(&slots, &catalogo).is_err());
+    }
 }

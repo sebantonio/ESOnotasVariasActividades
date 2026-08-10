@@ -27,3 +27,41 @@ Archivo: `CCGG PLANTILLA - RECUv45.xlsx`
 **Why:** El Excel ESO tiene una estructura diferente al Excel FP (plantilla313_dual). Los rangos son fijos y no hay que buscarlos por contenido.
 
 **How to apply:** Siempre usar rangos fijos. No buscar headers ni "UNIDADES" por texto. Si el usuario añade columnas nuevas en el Excel, revisar estos rangos.
+
+---
+
+## Nuevo layout: Hojas de unidad (U1..U15) con instrumentos por criterio
+
+*Introducido en ESOnotasVariasActividades (agosto 2026). Archivo: `Plantilla_Notas_ESO.xlsx`*
+
+**Estructura por filas (0-indexed):**
+
+| Fila (Excel) | Fila (0-idx) | Contenido |
+|---|---|---|
+| 2 | 1 | Etiquetas de slots: `i1`, `i2`, `i3`, `i4` en cols C:F (compartidas por toda la hoja) |
+| 3 | 2 | Subcabecera por bloque de criterio: `=i1`, `=i2`, `=i3`, `=i4`, `FINAL` (6 cols/criterio) |
+| 4 | 3 | Pesos de los 4 slots: fracción 0-1 en cols C:F (ej. 0.2, 0.4, 0.2, 0.2) |
+| 5 | 4 | Código criterio (`CR1.1`) en 1ª col del bloque; `Rec` en col +5 |
+| 6 | 5 | Fórmula ponderación criterio (INDEX/MATCH sobre hoja `PESOS`); misma lógica que antes, solo offset |
+| 7+ | 6+ | Datos de alumnos: i1-i4 (manual, cols ci..ci+3), FINAL (fórmula SUMPRODUCT, col ci+4, **solo lectura**), Rec (manual, col ci+5) |
+
+**Fórmula FINAL (ejemplo U1!L7 para CR1.1 en bloque 1):**
+```
+=IFERROR(SUMPRODUCT((H7:K7<>"")*C$4:F$4*H7:K7)/SUMPRODUCT((H7:K7<>"")*C$4:F$4),"")
+```
+- Media ponderada de i1:i4 (H:K) usando pesos (C:F, fila 4)
+- Ignora slots vacíos tanto numerador como denominador
+- Devuelve "" si todos los slots están vacíos
+
+**How to apply (backend):**
+- Row index de códigos criterio (CR1.1...): fila 5 (0-idx 4)
+- Row index de inicio datos alumnos: fila 7 (0-idx 6)
+- Ancho de bloque por criterio: 6 columnas (ci, ci+1, ci+2, ci+3, ci+4, ci+5)
+- Nunca escribir en col ci+4 (FINAL) — es fórmula, se propaga desde unit a eval sheets
+- Leer/escribir i1-i4 en ci..ci+3, Rec en ci+5
+- Pesos y etiquetas instrumentos en filas 2-4, cols C:F (compartidos, no por criterio)
+
+**Relación con hojas de evaluación:**
+- Las hojas `1ª EVA`, `2ª EVA`, `3ª EVA`, `FINAL` mantienen layout 2-cols/criterio (CR + Rec)
+- Formulas en eval sheets referencian el FINAL recién calculado de cada criterio en su hoja de unidad
+- Ej. antiguo: `='U1'!B5*'U1'!B$4` → nuevo: `=IF('U1'!L7="","",('U1'!L7*'U1'!H$6))` (con ajustes para nueva posición)
