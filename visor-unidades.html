@@ -379,17 +379,17 @@
         const ceColorMap = {};
         ceGroups.forEach((g, i) => { ceColorMap[g.ce] = CE_COLORS[i % CE_COLORS.length]; });
 
-        // Fila 1: grupos CE con colspan (Nota CE + nota/Rec por cada CR, si está desplegado)
+        // Fila 1: grupos CE con colspan (Nota CE + i1/i2/i3/i4/FINAL por cada CR, si está desplegado)
         let headRow1 = `<tr><th class="th-nombre" rowspan="2">Alumno</th><th class="th-final" rowspan="2">Nota<br>Final</th>`;
         ceGroups.forEach(g => {
             const c = ceColorMap[g.ce];
-            const colspan = g.collapsed ? 1 : g.count * 2 + 1;
+            const colspan = g.collapsed ? 1 : g.count * 5 + 1;
             const icon = g.collapsed ? "+" : "-";
             headRow1 += `<th colspan="${colspan}" class="th-ce" style="background:${c.bg};color:${c.fg};border-left:3px solid ${c.border};border-bottom:1px solid ${c.border}"><button class="ce-toggle" type="button" data-ce-key="${escapeHtml(String(g.ce))}">CE${g.ce} ${icon}</button></th>`;
         });
         headRow1 += `</tr>`;
 
-        // Fila 2: por grupo, Nota CE + columnas CR + Rec (si está desplegado)
+        // Fila 2: por grupo, Nota CE + columnas i1/i2/i3/i4/FINAL (si está desplegado)
         let headRow2 = `<tr>`;
         ceGroups.forEach(g => {
             const c = ceColorMap[g.ce];
@@ -399,12 +399,13 @@
                 groupCriterios.forEach((cr) => {
                     const pond = numberFrom(cr.ponderacion);
                     const tieneP = pond > 0;
-                    const pctTxt = tieneP
-                        ? `<div style="font-size:0.85em;color:var(--color-accent);font-weight:600;margin-top:2px">${Math.round(pond)}%</div>`
-                        : `<div style="font-size:0.82em;color:#9ca3af;margin-top:2px">—</div>`;
                     const bgStyle = tieneP ? "" : "background:#f3f4f6;color:#9ca3af;";
-                    headRow2 += `<th data-col-key="${escapeHtml(cr.codigo)}" style="width:80px;font-size:0.72em;padding:6px 4px;${bgStyle}">${escapeHtml(cr.codigo)}${pctTxt}</th>`;
-                    headRow2 += `<th data-col-key="${escapeHtml(cr.codigo)}-rec" style="width:56px;font-size:0.72em;padding:6px 4px;${bgStyle}">Rec</th>`;
+                    const instLabels = ['i1', 'i2', 'i3', 'i4', 'FINAL'];
+                    instLabels.forEach((label) => {
+                        const width = label === 'FINAL' ? '72px' : '60px';
+                        const fontWeight = label === 'FINAL' ? '800' : '600';
+                        headRow2 += `<th data-col-key="${escapeHtml(cr.codigo)}-${label}" style="width:${width};font-size:0.72em;padding:6px 4px;${bgStyle};font-weight:${fontWeight}">${label}</th>`;
+                    });
                 });
             }
         });
@@ -427,20 +428,20 @@
                     groupCriterios.forEach((cr) => {
                         const tieneP = numberFrom(cr.ponderacion) > 0;
                         const crNota = (alumno.crNotas || []).find(n => n.codigo === cr.codigo);
-                        const display = crNota ? crNota.display : "";
-                        const recDisplay = crNota ? crNota.recDisplay : "";
-                        const cls = gradeClass(display);
-                        const val = (display && display !== "") ? escapeHtml(display) : "—";
-                        if (tieneP) {
-                            bodyHtml += `<td data-col-key="${escapeHtml(cr.codigo)}"><span class="grade ${cls}">${val}</span></td>`;
-                        } else {
-                            bodyHtml += `<td data-col-key="${escapeHtml(cr.codigo)}" style="background:#f9fafb;"><span class="grade grade-empty">—</span></td>`;
-                        }
-                        if (recDisplay) {
-                            bodyHtml += `<td data-col-key="${escapeHtml(cr.codigo)}-rec"><span class="grade ${gradeClass(recDisplay)}">${escapeHtml(recDisplay)}</span></td>`;
-                        } else {
-                            bodyHtml += `<td data-col-key="${escapeHtml(cr.codigo)}-rec"></td>`;
-                        }
+                        const bgStyle = tieneP ? "" : "background:#f9fafb;";
+                        const instLabels = ['i1', 'i2', 'i3', 'i4', 'FINAL'];
+                        instLabels.forEach((label) => {
+                            let val = "—";
+                            if (crNota) {
+                                const num = crNota[label];
+                                if (num !== null && num !== undefined && !isNaN(num)) {
+                                    val = parseFloat(num).toFixed(1);
+                                }
+                            }
+                            const cls = gradeClass(val);
+                            const fontWeight = label === 'FINAL' ? '800' : '400';
+                            bodyHtml += `<td data-col-key="${escapeHtml(cr.codigo)}-${label}" style="${bgStyle}"><span class="grade ${cls}" style="font-weight:${fontWeight}">${val}</span></td>`;
+                        });
                     });
                 }
             });
