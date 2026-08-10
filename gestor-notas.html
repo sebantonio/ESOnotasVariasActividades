@@ -447,6 +447,31 @@
             font-size: 0.78rem !important;
         }
 
+        /* Instrumentos (i1-i4/Rec) por criterio: mas estrechos que .nota-cr suelto */
+        body.compact-mode .instr-input {
+            width: 26px !important;
+            min-height: 22px !important;
+            padding: 2px !important;
+            font-size: 0.68rem !important;
+        }
+
+        .cr-instr-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 28px) 34px 28px;
+            gap: 3px;
+            align-items: center;
+            justify-items: center;
+        }
+
+        .final-display {
+            display: inline-block;
+            min-width: 3rem;
+            text-align: right;
+            font-weight: 600;
+            color: #666;
+            font-size: 0.74em;
+        }
+
         body.compact-mode .summary-pill,
         body.compact-mode .quick-filter {
             padding-top: 3px !important;
@@ -1039,18 +1064,20 @@
                     lastFocusedStudentIdx = studentIdx;
                     const crCodigo = input.dataset.crCodigo;
                     const crColIdx = Number(input.dataset.crColidx);
+                    const field = input.dataset.field;
 
-                    if (!Number.isNaN(studentIdx) && currentNotes[studentIdx] && crCodigo) {
+                    if (!Number.isNaN(studentIdx) && currentNotes[studentIdx] && crCodigo && field) {
                         if (!currentNotes[studentIdx].crNotas) {
                             currentNotes[studentIdx].crNotas = [];
                         }
                         let crNota = currentNotes[studentIdx].crNotas.find(n => n.codigo === crCodigo);
                         if (!crNota) {
-                            crNota = { codigo: crCodigo, colIdx: crColIdx, nota: "", display: "" };
+                            crNota = { codigo: crCodigo, colIdx: crColIdx };
                             currentNotes[studentIdx].crNotas.push(crNota);
                         }
-                        crNota.nota = parseFloat(input.value.replace(",", ".")) || 0;
-                        crNota.display = input.value;
+                        crNota[field] = parseNotaValue(input.value);
+                        if (field === "rec") crNota.recDisplay = input.value;
+                        else crNota[field + "Display"] = input.value;
                         input.classList.add("dirty-note");
                         input.classList.remove("saved-note");
                         renderSummary(currentState);
@@ -1090,9 +1117,10 @@
                 if (Number.isNaN(startIdx)) return;
                 const crCodigo = input.dataset.crCodigo;
                 const crColIdx = Number(input.dataset.crColidx);
+                const field = input.dataset.field;
                 const text = (event.clipboardData || window.clipboardData).getData("text");
                 const values = parsePastedGrades(text);
-                applyPastedGradesToColumn(startIdx, crCodigo, crColIdx, values);
+                applyPastedGradesToColumn(startIdx, crCodigo, crColIdx, field, values);
             });
 
             notasBody.addEventListener("keydown", (e) => {
@@ -1130,8 +1158,8 @@
                     if (!cr) { tip.style.display = "none"; return; }
                     const vals = currentNotes.flatMap(a => {
                         const n = (a.crNotas || []).find(n => n.codigo === cr.codigo);
-                        const v = parseFloat(String(n?.display || "").replace(",", "."));
-                        return (!isNaN(v) && v > 0) ? [v] : [];
+                        const v = typeof n?.final === "number" ? n.final : null;
+                        return (v !== null && v > 0) ? [v] : [];
                     });
                     if (!vals.length) { tip.style.display = "none"; return; }
                     const media = (vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(2).replace(".", ",");
@@ -1309,8 +1337,7 @@
             const rows = notasBody.querySelectorAll("tr[data-student-idx]");
             let fail = 0, pass = 0;
             rows.forEach((row) => {
-                const inputs = Array.from(row.querySelectorAll(".nota-cr:not([disabled])"));
-                const values = inputs.map(i => parseFloat(i.value.replace(",", ".")) || 0);
+                const values = Array.from(row.querySelectorAll(".final-display")).map(finalValueOf);
                 const hasValue = values.some(v => v > 0);
                 if (hasValue) {
                     if (values.some(v => v > 0 && v < 5)) fail++;
@@ -1346,8 +1373,7 @@
         function applyQuickFilter(filter) {
             const rows = notasBody.querySelectorAll("tr[data-student-idx]");
             rows.forEach((row) => {
-                const inputs = Array.from(row.querySelectorAll(".nota-cr:not([disabled])"));
-                const values = inputs.map((input) => parseFloat(input.value.replace(",", ".")) || 0);
+                const values = Array.from(row.querySelectorAll(".final-display")).map(finalValueOf);
                 let show = true;
                 if (filter === "pending") show = values.every((value) => value === 0);
                 else if (filter === "invalid") show = row.classList.contains("invalid-note");
@@ -1564,7 +1590,7 @@
                     const borderL = ci === 0 ? `border-left:3px solid ${c.border};` : '';
                     const bg = tieneP ? c.bg : '#f3f4f6';
                     const fg = tieneP ? c.fg : '#9ca3af';
-                    head2 += `<th data-col-key="${cr.colIdx}" style="width:44px;text-align:center;font-size:0.68em;padding:4px 1px;background:${bg};color:${fg};${borderL}">${escapeHtml(cr.codigo)}${pctTxt}</th>`;
+                    head2 += `<th data-col-key="${cr.colIdx}" style="width:194px;text-align:center;font-size:0.68em;padding:4px 1px;background:${bg};color:${fg};${borderL}">${escapeHtml(cr.codigo)}${pctTxt}<div style="display:flex;justify-content:space-around;font-size:0.85em;font-weight:600;opacity:.7;margin-top:2px"><span>i1</span><span>i2</span><span>i3</span><span>i4</span><span>F</span><span>Rec</span></div></th>`;
                 });
             });
             head2 += '</tr>';
@@ -1596,28 +1622,34 @@
 
                 criterios.forEach((cr) => {
                     const tieneP = numberFrom(cr.ponderacion) > 0;
-                    const nota = (alumno.crNotas || []).find(n => n.codigo === cr.codigo);
-                    const notaVal = nota ? nota.display || "" : "";
+                    const crNota = (alumno.crNotas || []).find(n => n.codigo === cr.codigo) || {};
                     const cc = crColor[cr.codigo] || {};
                     const cellBg = tieneP ? (cc.c ? cc.c.bg : '') : '#f3f4f6';
                     const borderL = cc.firstInGroup ? `border-left:3px solid ${cc.c ? cc.c.border : '#ccc'};` : '';
-                    if (tieneP) {
-                        html += `<td data-col-key="${cr.colIdx}" style="text-align:center;padding:4px 1px;background:${cellBg};${borderL}">
-                            <input type="text" inputmode="decimal" class="nota-cr"
-                                data-cr-codigo="${escapeHtml(cr.codigo)}"
-                                data-cr-colidx="${cr.colIdx}"
-                                value="${escapeHtml(String(notaVal))}"
-                                style="width:40px;text-align:center;padding:3px 0;font-size:0.8em;border:1px solid #d7d7d7;border-radius:4px;min-height:28px"
-                            /></td>`;
-                    } else {
-                        html += `<td data-col-key="${cr.colIdx}" style="text-align:center;padding:4px 1px;background:#f3f4f6;${borderL}">
-                            <input type="text" class="nota-cr" disabled
-                                data-cr-codigo="${escapeHtml(cr.codigo)}"
-                                data-cr-colidx="${cr.colIdx}"
-                                value="${escapeHtml(String(notaVal))}"
-                                style="width:40px;text-align:center;padding:3px 0;font-size:0.8em;border:1px solid #e5e7eb;border-radius:4px;min-height:28px;background:#f3f4f6;color:#9ca3af;cursor:not-allowed"
-                            /></td>`;
-                    }
+                    const disabledAttr = tieneP ? '' : 'disabled';
+                    const disabledStyle = tieneP ? '' : 'background:#f3f4f6;color:#9ca3af;cursor:not-allowed;border-color:#e5e7eb;';
+                    const finalNum = typeof crNota.final === "number" ? crNota.final : null;
+                    const finalTxt = finalNum !== null ? finalNum.toFixed(1).replace(".", ",") : "—";
+
+                    const fieldInput = (field, val, extraClass) => `<input type="text" inputmode="decimal" class="nota-cr instr-input${extraClass ? ' ' + extraClass : ''}" ${disabledAttr}
+                        data-cr-codigo="${escapeHtml(cr.codigo)}"
+                        data-cr-colidx="${cr.colIdx}"
+                        data-field="${field}"
+                        value="${escapeHtml(String(val))}"
+                        placeholder="${field === 'rec' ? 'Rec' : field}"
+                        style="width:26px;text-align:center;padding:2px 0;font-size:0.72em;border:1px solid #d7d7d7;border-radius:4px;min-height:24px;${disabledStyle}"
+                    />`;
+
+                    html += `<td data-col-key="${cr.colIdx}" style="text-align:center;padding:4px 2px;background:${cellBg};${borderL}">
+                        <div class="cr-instr-grid">
+                            ${fieldInput('i1', crFieldDisplay(crNota, 'i1'))}
+                            ${fieldInput('i2', crFieldDisplay(crNota, 'i2'))}
+                            ${fieldInput('i3', crFieldDisplay(crNota, 'i3'))}
+                            ${fieldInput('i4', crFieldDisplay(crNota, 'i4'))}
+                            <span class="final-display" title="Nota final del criterio (calculada, solo lectura)">${finalTxt}</span>
+                            ${fieldInput('rec', crFieldDisplay(crNota, 'rec'), 'rec-input')}
+                        </div>
+                    </td>`;
                 });
 
                 row.innerHTML = html;
@@ -1643,8 +1675,8 @@
             criterios.forEach(cr => {
                 const vals = currentNotes.map(a => {
                     const n = (a.crNotas || []).find(n => n.codigo === cr.codigo);
-                    const v = parseFloat(String(n?.display || n?.nota || "").replace(",", "."));
-                    return isNaN(v) || v === 0 ? null : v;
+                    const v = typeof n?.final === "number" ? n.final : null;
+                    return v === null || v === 0 ? null : v;
                 }).filter(v => v !== null);
                 const pending = currentNotes.length - vals.length;
                 const avg = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
@@ -1683,7 +1715,8 @@
                     showMessage("Guardando notas en el Excel...", "info");
                 }
 
-                // Construir payload: { unidad, notas: [{ rowIdx, crNotas: { "CR1.1": {colIdx, nota} } }] }
+                // Construir payload: { unidad, notas: [{ rowIdx, crNotas: { "CR1.1": {colIdx, i1, i2, i3, i4, rec} } }] }
+                // FINAL nunca se envia: es una formula Excel (SUMPRODUCT) que se recalcula sola.
                 const payload = {
                     unidad: currentState.unidad,
                     notas: currentNotes.map((alumno) => {
@@ -1691,7 +1724,11 @@
                         (alumno.crNotas || []).forEach((crNota) => {
                             crNotasMap[crNota.codigo] = {
                                 colIdx: crNota.colIdx,
-                                nota: crNota.nota
+                                i1: crNota.i1 !== undefined ? crNota.i1 : null,
+                                i2: crNota.i2 !== undefined ? crNota.i2 : null,
+                                i3: crNota.i3 !== undefined ? crNota.i3 : null,
+                                i4: crNota.i4 !== undefined ? crNota.i4 : null,
+                                rec: crNota.rec !== undefined ? crNota.rec : parseNotaValue(crNota.recDisplay)
                             };
                         });
                         return {
@@ -1746,8 +1783,7 @@
             const invalidRows = [];
             currentNotes.forEach((alumno, idx) => {
                 const invalid = (alumno.crNotas || []).find((crNota) => {
-                    const value = crNota.display !== undefined ? crNota.display : crNota.nota;
-                    return validateGrade(value).isInvalid;
+                    return ["i1", "i2", "i3", "i4", "rec"].some((f) => validateGrade(crFieldDisplay(crNota, f)).isInvalid);
                 });
                 if (invalid) {
                     invalidRows.push(alumno.nombre || `fila ${idx + 1}`);
@@ -1773,8 +1809,10 @@
             currentNotes = currentNotes.map((alumno) => {
                 alumno.crNotas = (alumno.crNotas || []).map((cr) => ({
                     ...cr,
-                    nota: "",
-                    display: ""
+                    i1: null, i2: null, i3: null, i4: null,
+                    i1Display: "", i2Display: "", i3Display: "", i4Display: "",
+                    rec: null, recDisplay: "",
+                    final: null
                 }));
                 return alumno;
             });
@@ -1834,8 +1872,8 @@
                 .filter((value, idx, values) => value !== "" || idx < values.length - 1);
         }
 
-        function applyPastedGradesToColumn(startIdx, crCodigo, crColIdx, values) {
-            if (startIdx < 0 || !values.length) {
+        function applyPastedGradesToColumn(startIdx, crCodigo, crColIdx, field, values) {
+            if (startIdx < 0 || !values.length || !field) {
                 return;
             }
 
@@ -1851,14 +1889,15 @@
                 }
                 let crNota = alumno.crNotas.find(n => n.codigo === crCodigo);
                 if (!crNota) {
-                    crNota = { codigo: crCodigo, colIdx: crColIdx, nota: "", display: "" };
+                    crNota = { codigo: crCodigo, colIdx: crColIdx };
                     alumno.crNotas.push(crNota);
                 }
-                crNota.nota = parseFloat(value.replace(",", ".")) || 0;
-                crNota.display = value;
+                crNota[field] = parseNotaValue(value);
+                if (field === "rec") crNota.recDisplay = value;
+                else crNota[field + "Display"] = value;
                 applied += 1;
 
-                const input = notasBody.querySelector(`tr[data-student-idx="${noteIdx}"] .nota-cr[data-cr-colidx="${crColIdx}"]`);
+                const input = notasBody.querySelector(`tr[data-student-idx="${noteIdx}"] .nota-cr[data-cr-colidx="${crColIdx}"][data-field="${field}"]`);
                 if (input) {
                     input.value = value;
                     input.classList.add("dirty-note");
@@ -1879,12 +1918,9 @@
                 stats.total += 1;
                 const crNotas = alumno.crNotas || [];
                 // Usar display: las celdas vacías en Excel tienen display=""
-                const hasAnyNota = crNotas.some(cn => cn.display !== undefined && cn.display !== "");
-                const hasInvalidNota = crNotas.some(cn => {
-                    if (!cn.display) return false;
-                    const val = validateGrade(cn.display);
-                    return val.isInvalid;
-                });
+                const fieldVals = crNotas.flatMap(cn => ["i1", "i2", "i3", "i4", "rec"].map(f => crFieldDisplay(cn, f)));
+                const hasAnyNota = fieldVals.some(v => v !== "" && v !== undefined);
+                const hasInvalidNota = fieldVals.some(v => v !== "" && validateGrade(v).isInvalid);
 
                 if (hasInvalidNota) {
                     stats.invalid += 1;
@@ -1918,6 +1954,39 @@
                 help.textContent = validation.message;
                 cell.appendChild(help);
             }
+        }
+
+        // Lee el numero mostrado en un .final-display (span de solo lectura) del DOM.
+        function finalValueOf(span) {
+            const t = (span.textContent || "").trim().replace(",", ".");
+            const v = parseFloat(t);
+            return Number.isNaN(v) ? 0 : v;
+        }
+
+        // Convierte i1-i4/final numéricos (o null) a texto con coma decimal.
+        function formatNum(v) {
+            if (v === null || v === undefined) return "";
+            return String(v).replace(".", ",");
+        }
+
+        // Valor a mostrar en el input de un campo (i1/i2/i3/i4/rec) de un crNota.
+        // Prioriza el *Display (texto tal cual lo tecleó el usuario) sobre el numero crudo cargado del backend.
+        function crFieldDisplay(cn, field) {
+            if (!cn) return "";
+            if (field === "rec") {
+                return cn.recDisplay !== undefined ? cn.recDisplay : "";
+            }
+            const dispKey = field + "Display";
+            if (cn[dispKey] !== undefined) return cn[dispKey];
+            return formatNum(cn[field]);
+        }
+
+        // Parsea texto de un input (admite coma o punto) a number|null. "" o invalido -> null.
+        function parseNotaValue(raw) {
+            const t = String(raw ?? "").trim();
+            if (t === "") return null;
+            const n = parseFloat(t.replace(",", "."));
+            return Number.isNaN(n) ? null : n;
         }
 
         function validateGrade(value) {
