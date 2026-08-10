@@ -702,7 +702,7 @@
             group.collapsed = collapsedCeSet.has(group.key);
             group.colspan = group.collapsed
                 ? 1
-                : 1 + group.criterios.reduce((sum, cr) => sum + (Number(cr.recColIdx) >= 0 ? 2 : 1), 0);
+                : 1 + group.criterios.filter(cr => Number(cr.recColIdx) >= 0).length;
         });
 
         const totalPages = Math.max(1, Math.ceil(allAlumnos.length / perPage));
@@ -748,12 +748,8 @@
             const c = g.color;
             head2 += `<th class="th-ce-nota" data-col-key="${escapeHtml(g.key)}-ce" style="width:72px;background:${c.notaBg};color:${c.fg};border-left:3px solid ${c.border};border-right:2px solid ${c.border};">Nota CE</th>`;
             if (!g.collapsed) {
-                g.criterios.forEach((cr, crIdx) => {
-                    const crBg = crIdx % 2 === 0 ? c.bg : c.notaBg;
-                    head2 += `<th data-col-key="${cr.colIdx}" style="width:62px;font-size:0.72em;padding:5px 3px;background:${crBg};color:${c.fg};">${escapeHtml(cr.codigo)}</th>`;
-                    if (Number(cr.recColIdx) >= 0) {
-                        head2 += `<th class="th-rec" data-col-key="${cr.colIdx}-rec" style="width:56px;font-size:0.68em;padding:5px 3px;background:${crBg};">Rec</th>`;
-                    }
+                g.criterios.filter(cr => Number(cr.recColIdx) >= 0).forEach((cr) => {
+                    head2 += `<th class="th-rec" data-col-key="${cr.colIdx}-rec" style="width:56px;font-size:0.68em;padding:5px 3px;background:#fffbeb;">Rec</th>`;
                 });
             }
         });
@@ -772,21 +768,15 @@
                 const ceCls  = gradeClass(ceInfo ? ceInfo.display : "");
                 bodyHtml += `<td data-ce="${alumno.rowIdx}-${g.key}" data-col-key="${escapeHtml(g.key)}-ce" style="border-left:3px solid ${c.border};border-right:2px solid ${c.border};background:${c.notaBg};"><span class="grade ${ceCls}">${ceDisp || "—"}</span></td>`;
                 if (!g.collapsed) {
-                    g.criterios.forEach((cr, crIdx) => {
-                        const crBg = crIdx % 2 === 0 ? c.bg : c.notaBg;
+                    g.criterios.filter(cr => Number(cr.recColIdx) >= 0).forEach((cr) => {
                         const crVal = (alumno.crNotas || []).find(v => Number(v.colIdx) === Number(cr.colIdx));
-                        const disp  = formatNote(crVal ? crVal.display : "");
-                        const cls   = gradeClass(crVal ? crVal.display : "");
-                        bodyHtml += `<td data-col-key="${cr.colIdx}" style="background:${crBg}"><span class="grade ${cls}">${disp || "—"}</span></td>`;
-                        if (Number(cr.recColIdx) >= 0) {
-                            let recRaw = (crVal && crVal.recDisplay) ? escapeHtml(crVal.recDisplay) : "";
-                            const recNum = parseFloat(recRaw.replace(",", "."));
-                            if (!isNaN(recNum) && recNum === 0) recRaw = "";
-                            const crNota = crVal ? (parseFloat(String(crVal.display || crVal.nota || "").replace(",", ".")) || 0) : 0;
-                            const pendiente = crNota > 0 && crNota < 5 && recRaw === "";
-                            const pendClass = pendiente ? " rec-pending" : "";
-                            bodyHtml += `<td class="td-rec" data-col-key="${cr.colIdx}-rec" style="background:${crBg}"><input class="rec-input${pendClass}" type="text" placeholder="${pendiente ? "⚠" : "—"}" value="${recRaw}" data-row="${alumno.rowIdx}" data-col="${cr.colIdx}" data-codigo="${escapeHtml(cr.codigo)}" data-col-key="${cr.colIdx}-rec" onblur="saveRecFromInput(this)"></td>`;
-                        }
+                        let recRaw = (crVal && crVal.recDisplay) ? escapeHtml(crVal.recDisplay) : "";
+                        const recNum = parseFloat(recRaw.replace(",", "."));
+                        if (!isNaN(recNum) && recNum === 0) recRaw = "";
+                        const crNota = crVal ? (parseFloat(String(crVal.display || crVal.nota || "").replace(",", ".")) || 0) : 0;
+                        const pendiente = crNota > 0 && crNota < 5 && recRaw === "";
+                        const pendClass = pendiente ? " rec-pending" : "";
+                        bodyHtml += `<td class="td-rec" data-col-key="${cr.colIdx}-rec" style="background:#fffbeb;"><input class="rec-input${pendClass}" type="text" placeholder="${pendiente ? "⚠" : "—"}" value="${recRaw}" data-row="${alumno.rowIdx}" data-col="${cr.colIdx}" data-codigo="${escapeHtml(cr.codigo)}" data-col-key="${cr.colIdx}-rec" onblur="saveRecFromInput(this)"></td>`;
                     });
                 }
             });
