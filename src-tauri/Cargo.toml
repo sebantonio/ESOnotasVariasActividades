@@ -1,6 +1,6 @@
 [package]
 name = "eso-notas-local"
-version = "0.1.203"
+version = "0.1.204"
 description = "Aplicacion local para gestionar notas ESO en una plantilla Excel."
 authors = ["Sebantonio"]
 edition = "2021"
