@@ -1,0 +1,5 @@
+
+> eso-varias-activiades@0.1.204 tauri:build
+> node scripts/bump-version.js && tauri build && node scripts/copy-exe.js
+
+Version: 0.1.204 → 0.1.205

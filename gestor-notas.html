@@ -1112,6 +1112,8 @@
                 const input = event.target;
                 if (input.classList && input.classList.contains("nota-cr")) {
                     updateNoteValidation(input);
+                    // Guardar celda individual en blur (patrón ESOplantillaNotas)
+                    saveNotaCellFromInput(input);
                 }
             });
 
@@ -1733,6 +1735,58 @@
             }
         }
 
+        // Guarda 1 celda cuando pierde foco (patrón ESOplantillaNotas)
+        async function saveNotaCellFromInput(input) {
+            if (validateGrade(input.value).isInvalid) return Promise.resolve();
+            if (!currentState) return Promise.resolve();
+
+            const row = input.closest("tr");
+            const studentIdx = Number(row?.dataset.studentIdx);
+            const rowIdx = Number(row?.dataset.rowIdx);
+            const crCodigo = input.dataset.crCodigo;
+            const colIdx = Number(input.dataset.crColidx);
+            const field = input.dataset.field;
+            if (Number.isNaN(rowIdx) || Number.isNaN(colIdx) || !crCodigo || !field) return Promise.resolve();
+
+            const alumno = currentNotes[studentIdx];
+            const crNota = (alumno?.crNotas || []).find((n) => n.codigo === crCodigo);
+            if (!crNota || !crNota.dirty) return Promise.resolve();
+
+            const payload = {
+                unidad: currentState.unidad,
+                notas: [{
+                    rowIdx,
+                    crNotas: {
+                        [crCodigo]: {
+                            colIdx,
+                            i1: crNota.i1 !== undefined ? crNota.i1 : null,
+                            i2: crNota.i2 !== undefined ? crNota.i2 : null,
+                            i3: crNota.i3 !== undefined ? crNota.i3 : null,
+                            i4: crNota.i4 !== undefined ? crNota.i4 : null,
+                            rec: crNota.rec !== undefined ? crNota.rec : parseNotaValue(crNota.recDisplay)
+                        }
+                    }
+                }]
+            };
+
+            crNota.dirty = false;
+            input.classList.remove("dirty-note");
+
+            return window.electronExcel.saveNotasUnidad(payload).then(() => {
+                input.classList.add("saved-note");
+                setTimeout(() => input.classList.remove("saved-note"), 1200);
+                _notasCache.delete(currentState.unidad);
+                hayCambiosSinGuardar = getPendingDirtyCount() > 0;
+                if (!hayCambiosSinGuardar) document.title = _BASE_TITLE;
+                if (lastSyncStatus) lastSyncStatus.textContent = `Guardado ${new Date().toLocaleTimeString()}`;
+                updateStatusBar();
+            }).catch((error) => {
+                crNota.dirty = true;
+                input.classList.add("dirty-note");
+                showMessage("Error al guardar nota: " + (error.message || error), "error");
+            });
+        }
+
         async function saveNotas(options = {}) {
             if (!currentState) {
                 return true;
@@ -2056,8 +2110,8 @@
             hayCambiosSinGuardar = true;
             if (!document.title.startsWith('*')) document.title = '* ' + _BASE_TITLE;
             updateStatusBar();
-            if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
-            autoSaveTimeout = setTimeout(() => guardarCambiosAutomaticamente(), AUTO_SAVE_DELAY_MS);
+            // Autosave es por blur en saveNotaCellFromInput, no aquí
+            // El guardado de celda ocurre cuando pierde foco
         }
 
         async function guardarCambiosAutomaticamente() {
