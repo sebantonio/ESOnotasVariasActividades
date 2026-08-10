@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ESO_notas_Actividades",
+  "productName": "ESO_Varias_Activiades",
   "version": "0.1.204",
-  "identifier": "es.seba.esonotas",
+  "identifier": "es.seba.esovarias",
   "build": {
     "beforeDevCommand": "node scripts/prepare-tauri-web.js",
     "beforeBuildCommand": "node scripts/prepare-tauri-web.js",
@@ -12,7 +12,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "ESO_notas_Actividades",
+        "title": "ESO_Varias_Activiades",
         "url": "index.html",
         "width": 1200,
         "height": 850,
