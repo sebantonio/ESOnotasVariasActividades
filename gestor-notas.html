@@ -953,6 +953,8 @@
         let currentState = null;
         let currentNotes = [];
         let autoSaveTimeout = null;
+        const AUTO_SAVE_DELAY_MS = 2000;
+        const SAVE_TIMEOUT_MS = 30000; // timeout 30s para backend
         let hayCambiosSinGuardar = false;
         const _BASE_TITLE = document.title;
         let studentSearch = '';
@@ -1078,12 +1080,22 @@
                         crNota[field] = parseNotaValue(input.value);
                         if (field === "rec") crNota.recDisplay = input.value;
                         else crNota[field + "Display"] = input.value;
+
+                        // Calcular FINAL automáticamente cuando cambian i1-i4
+                        if (["i1", "i2", "i3", "i4"].includes(field)) {
+                            updateFinalDisplay(studentIdx, crCodigo);
+                        }
+
                         input.classList.add("dirty-note");
                         input.classList.remove("saved-note");
                         renderSummary(currentState);
                         marcarCambio();
                         renderStatsRow();
                         updateStatusBar();
+
+                        // Autosave por celda individual (silencioso, con debounce)
+                        if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+                        autoSaveTimeout = setTimeout(() => saveNotaCellSilent(studentIdx, crCodigo, field), AUTO_SAVE_DELAY_MS);
                     }
                 }
             });
@@ -1646,7 +1658,7 @@
                             ${fieldInput('i2', crFieldDisplay(crNota, 'i2'))}
                             ${fieldInput('i3', crFieldDisplay(crNota, 'i3'))}
                             ${fieldInput('i4', crFieldDisplay(crNota, 'i4'))}
-                            <span class="final-display" title="Nota final del criterio (calculada, solo lectura)">${finalTxt}</span>
+                            <span class="final-display" data-cr-codigo="${escapeHtml(cr.codigo)}" title="Nota final del criterio (calculada, solo lectura)">${finalTxt}</span>
                             ${fieldInput('rec', crFieldDisplay(crNota, 'rec'), 'rec-input')}
                         </div>
                     </td>`;
@@ -1691,6 +1703,82 @@
             });
             html += '</tr>';
             notasTfoot.innerHTML = html;
+        }
+
+        // Guarda solo una celda individual de forma silenciosa (sin UI blocking)
+        async function saveNotaCellSilent(studentIdx, crCodigo, field) {
+            if (!currentNotes[studentIdx]) return;
+            const crNota = currentNotes[studentIdx].crNotas?.find(n => n.codigo === crCodigo);
+            if (!crNota) return;
+
+            const payload = {
+                unidad: currentState.unidad,
+                syncEval: false, // sin sincronizar eval (mas rapido, el usuario guarda full despues)
+                notas: [{
+                    rowIdx: currentNotes[studentIdx].rowIdx,
+                    crNotas: {
+                        [crCodigo]: {
+                            colIdx: crNota.colIdx,
+                            i1: crNota.i1,
+                            i2: crNota.i2,
+                            i3: crNota.i3,
+                            i4: crNota.i4,
+                            rec: crNota.rec !== undefined ? crNota.rec : parseNotaValue(crNota.recDisplay)
+                        }
+                    }
+                }]
+            };
+
+            try {
+                await Promise.race([
+                    window.electronExcel.saveNotasUnidad(payload),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error("Timeout")), SAVE_TIMEOUT_MS)
+                    )
+                ]);
+                // Mark como guardado
+                const input = document.querySelector(`tr[data-student-idx="${studentIdx}"] .nota-cr[data-cr-codigo="${crCodigo}"][data-field="${field}"]`);
+                if (input) {
+                    input.classList.add("saved-note");
+                    input.classList.remove("dirty-note");
+                }
+            } catch (e) {
+                // Silent fail - el usuario puede guardar manualmente después
+                console.log("Autosave fallido (seguirá reintentando):", e.message);
+            }
+        }
+
+        // Calcula el FINAL (media ponderada) basado en i1-i4 e instrumentos.pesos
+        function calculateFinal(crNota, instrumentos) {
+            if (!crNota || !instrumentos || instrumentos.length === 0) return null;
+            const values = [crNota.i1, crNota.i2, crNota.i3, crNota.i4];
+            const weights = instrumentos.map(i => i.peso || 0);
+
+            let numerator = 0, denominator = 0;
+            for (let i = 0; i < 4; i++) {
+                if (values[i] !== undefined && values[i] !== null) {
+                    numerator += weights[i] * values[i];
+                    denominator += weights[i];
+                }
+            }
+            return denominator > 0 ? numerator / denominator : null;
+        }
+
+        // Actualiza el display del FINAL cuando cambian los instrumentos
+        function updateFinalDisplay(studentIdx, crCodigo) {
+            if (!currentNotes[studentIdx]) return;
+            const crNota = currentNotes[studentIdx].crNotas?.find(n => n.codigo === crCodigo);
+            if (!crNota) return;
+            const final = calculateFinal(crNota, currentState.instrumentosUnidad || []);
+            crNota.final = final;
+            // Actualizar el DOM del FINAL
+            const row = document.querySelector(`tr[data-student-idx="${studentIdx}"]`);
+            if (row) {
+                const finalSpan = row.querySelector(`.final-display[data-cr-codigo="${crCodigo}"]`);
+                if (finalSpan) {
+                    finalSpan.textContent = final !== null ? final.toFixed(1) : "-";
+                }
+            }
         }
 
         async function saveNotas(options = {}) {
@@ -1738,7 +1826,12 @@
                     })
                 };
 
-                const data = await window.electronExcel.saveNotasUnidad(payload);
+                // Timeout de 30s para el backend
+                const savePromise = window.electronExcel.saveNotasUnidad(payload);
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("Timeout guardando notas (30s). Verifica conexión Excel.")), SAVE_TIMEOUT_MS)
+                );
+                const data = await Promise.race([savePromise, timeoutPromise]);
                 currentState = data;
                 currentNotes = (data.alumnos || []).map((item) => ({ ...item }));
                 // Invalidar caché de esta clave para que la próxima carga relean datos actualizados
