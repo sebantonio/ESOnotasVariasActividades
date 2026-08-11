@@ -953,8 +953,7 @@
         let currentState = null;
         let currentNotes = [];
         let autoSaveTimeout = null;
-        const AUTO_SAVE_DELAY_MS = 2000;
-        const SAVE_TIMEOUT_MS = 30000; // timeout 30s para backend
+        const AUTO_SAVE_DELAY_MS = 60000;
         let hayCambiosSinGuardar = false;
         const _BASE_TITLE = document.title;
         let studentSearch = '';
@@ -1112,8 +1111,6 @@
                 const input = event.target;
                 if (input.classList && input.classList.contains("nota-cr")) {
                     updateNoteValidation(input);
-                    // Guardar celda individual en blur (patrón ESOplantillaNotas)
-                    saveNotaCellFromInput(input);
                 }
             });
 
@@ -1263,6 +1260,13 @@
                     console.warn("No se pudieron cargar pesos, usando defaults:", e);
                     currentState.unidadPesos = [0.25, 0.25, 0.25, 0.25];
                 }
+
+                // Recalcular FINAL para todos los criterios con los nuevos pesos
+                currentNotes.forEach((alumno) => {
+                    (alumno.crNotas || []).forEach((crNota) => {
+                        crNota.final = calculateFinal(crNota, null, currentState.unidadPesos);
+                    });
+                });
 
                 renderControls(data);
                 renderSummary(data);
@@ -1746,58 +1750,6 @@
             }
         }
 
-        // Guarda 1 celda cuando pierde foco (patrón ESOplantillaNotas)
-        async function saveNotaCellFromInput(input) {
-            if (validateGrade(input.value).isInvalid) return Promise.resolve();
-            if (!currentState) return Promise.resolve();
-
-            const row = input.closest("tr");
-            const studentIdx = Number(row?.dataset.studentIdx);
-            const rowIdx = Number(row?.dataset.rowIdx);
-            const crCodigo = input.dataset.crCodigo;
-            const colIdx = Number(input.dataset.crColidx);
-            const field = input.dataset.field;
-            if (Number.isNaN(rowIdx) || Number.isNaN(colIdx) || !crCodigo || !field) return Promise.resolve();
-
-            const alumno = currentNotes[studentIdx];
-            const crNota = (alumno?.crNotas || []).find((n) => n.codigo === crCodigo);
-            if (!crNota || !crNota.dirty) return Promise.resolve();
-
-            const payload = {
-                unidad: currentState.unidad,
-                notas: [{
-                    rowIdx,
-                    crNotas: {
-                        [crCodigo]: {
-                            colIdx,
-                            i1: crNota.i1 !== undefined ? crNota.i1 : null,
-                            i2: crNota.i2 !== undefined ? crNota.i2 : null,
-                            i3: crNota.i3 !== undefined ? crNota.i3 : null,
-                            i4: crNota.i4 !== undefined ? crNota.i4 : null,
-                            rec: crNota.rec !== undefined ? crNota.rec : parseNotaValue(crNota.recDisplay)
-                        }
-                    }
-                }]
-            };
-
-            crNota.dirty = false;
-            input.classList.remove("dirty-note");
-
-            return window.electronExcel.saveNotasUnidad(payload).then(() => {
-                input.classList.add("saved-note");
-                setTimeout(() => input.classList.remove("saved-note"), 1200);
-                _notasCache.delete(currentState.unidad);
-                hayCambiosSinGuardar = getPendingDirtyCount() > 0;
-                if (!hayCambiosSinGuardar) document.title = _BASE_TITLE;
-                if (lastSyncStatus) lastSyncStatus.textContent = `Guardado ${new Date().toLocaleTimeString()}`;
-                updateStatusBar();
-            }).catch((error) => {
-                crNota.dirty = true;
-                input.classList.add("dirty-note");
-                showMessage("Error al guardar nota: " + (error.message || error), "error");
-            });
-        }
-
         async function saveNotas(options = {}) {
             if (!currentState) {
                 return true;
@@ -1843,12 +1795,7 @@
                     })
                 };
 
-                // Timeout de 30s para el backend
-                const savePromise = window.electronExcel.saveNotasUnidad(payload);
-                const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error("Timeout guardando notas (30s). Verifica conexión Excel.")), SAVE_TIMEOUT_MS)
-                );
-                const data = await Promise.race([savePromise, timeoutPromise]);
+                const data = await window.electronExcel.saveNotasUnidad(payload);
                 currentState = data;
                 currentNotes = (data.alumnos || []).map((item) => ({ ...item }));
                 // Invalidar caché de esta clave para que la próxima carga relean datos actualizados
@@ -2121,8 +2068,6 @@
             hayCambiosSinGuardar = true;
             if (!document.title.startsWith('*')) document.title = '* ' + _BASE_TITLE;
             updateStatusBar();
-            // Autosave es por blur en saveNotaCellFromInput, no aquí
-            // El guardado de celda ocurre cuando pierde foco
         }
 
         async function guardarCambiosAutomaticamente() {
