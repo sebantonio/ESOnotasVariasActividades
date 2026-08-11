@@ -710,10 +710,17 @@
             // Toggle ponderaciones section
             const togglePonderacionesBtn = document.getElementById('togglePonderacionesBtn');
             const ponderacionesSection = document.getElementById('ponderacionesSection');
-            togglePonderacionesBtn.addEventListener('click', () => {
+            togglePonderacionesBtn.addEventListener('click', async () => {
                 const isVisible = ponderacionesSection.style.display !== 'none';
                 ponderacionesSection.style.display = isVisible ? 'none' : 'block';
-                if (!isVisible) loadUnidadesForPonderaciones();
+                if (!isVisible) {
+                    try {
+                        await loadUnidadesForPonderaciones();
+                    } catch (error) {
+                        mostrarMensaje('Error cargando unidades: ' + error.message, 'error');
+                        ponderacionesSection.style.display = 'none';
+                    }
+                }
             });
         });
 
@@ -1321,14 +1328,18 @@
             const selector = document.getElementById('unidadSelector');
             selector.innerHTML = '<option value="">-- Elige una unidad --</option>';
 
-            // Cargar lista de unidades (mismo que en main)
-            const data = await window.electronExcel.getUnidades();
-            (data.unidades || []).forEach(u => {
-                const option = document.createElement('option');
-                option.value = u.codigo;
-                option.textContent = `${u.codigo} - ${u.nombre}`;
-                selector.appendChild(option);
-            });
+            try {
+                const data = await window.electronExcel.getUnidades();
+                (data.unidades || []).forEach(u => {
+                    const option = document.createElement('option');
+                    option.value = u.codigo;
+                    option.textContent = `${u.codigo} - ${u.nombre}`;
+                    selector.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading unidades:', error);
+                throw error;
+            }
         }
 
         // Dropdown change listener
