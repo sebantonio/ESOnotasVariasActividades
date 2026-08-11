@@ -1387,6 +1387,34 @@
         ['peso_i1', 'peso_i2', 'peso_i3', 'peso_i4'].forEach(id => {
             document.getElementById(id).addEventListener('input', actualizarValidacion);
         });
+
+        // ===== GUARDAR PONDERACIONES =====
+        document.getElementById('guardarPonderacionesBtn').addEventListener('click', async () => {
+            const unidad = document.getElementById('unidadSelector').value;
+            if (!unidad) {
+                mostrarMensaje('Selecciona una unidad', 'error');
+                return;
+            }
+
+            const pesos = [
+                parseFloat(document.getElementById('peso_i1').value),
+                parseFloat(document.getElementById('peso_i2').value),
+                parseFloat(document.getElementById('peso_i3').value),
+                parseFloat(document.getElementById('peso_i4').value)
+            ];
+
+            try {
+                await window.electronExcel.excel_save_unidad_pesos({ unidad, pesos });
+                mostrarMensaje(`Ponderaciones guardadas para ${unidad}`, 'success');
+                document.getElementById('ponderacionesSection').style.display = 'none';
+            } catch (error) {
+                mostrarMensaje(error.message || 'Error al guardar', 'error');
+            }
+        });
+
+        document.getElementById('cancelarPonderacionesBtn').addEventListener('click', () => {
+            document.getElementById('ponderacionesSection').style.display = 'none';
+        });
     </script>
 </body>
 </html>
