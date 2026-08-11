@@ -1810,13 +1810,13 @@
                     showMessage("Guardando notas en el Excel...", "info");
                 }
 
-                // Construir payload: { unidad, notas: [{ rowIdx, crNotas: { "CR1.1": {colIdx, i1, i2, i3, i4, rec} } }] }
-                // FINAL nunca se envia: es una formula Excel (SUMPRODUCT) que se recalcula sola.
-                const payload = {
-                    unidad: currentState.unidad,
-                    notas: currentNotes.map((alumno) => {
+                // Recolectar SOLO cambios pendientes (dirty=true), no enviar todo
+                const pendingNotes = [];
+                currentNotes.forEach((alumno) => {
+                    const dirtyNotas = (alumno.crNotas || []).filter((cr) => cr.dirty);
+                    if (dirtyNotas.length > 0) {
                         const crNotasMap = {};
-                        (alumno.crNotas || []).forEach((crNota) => {
+                        dirtyNotas.forEach((crNota) => {
                             crNotasMap[crNota.codigo] = {
                                 colIdx: crNota.colIdx,
                                 i1: crNota.i1 !== undefined ? crNota.i1 : null,
@@ -1826,11 +1826,17 @@
                                 rec: crNota.rec !== undefined ? crNota.rec : parseNotaValue(crNota.recDisplay)
                             };
                         });
-                        return {
+                        pendingNotes.push({
                             rowIdx: alumno.rowIdx,
                             crNotas: crNotasMap
-                        };
-                    })
+                        });
+                    }
+                });
+
+                const payload = {
+                    unidad: currentState.unidad,
+                    notas: pendingNotes,
+                    syncEval: true  // Botón manual: sí sincroniza con evaluación
                 };
 
                 // Timeout de 30s para el backend
