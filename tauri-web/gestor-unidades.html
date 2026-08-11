@@ -1322,7 +1322,7 @@
             selector.innerHTML = '<option value="">-- Elige una unidad --</option>';
 
             // Cargar lista de unidades (mismo que en main)
-            const data = await window.electronExcel.excel_get_unidades();
+            const data = await window.electronExcel.getUnidades();
             (data.unidades || []).forEach(u => {
                 const option = document.createElement('option');
                 option.value = u.codigo;
@@ -1340,7 +1340,7 @@
             }
 
             // Cargar pesos actuales de la unidad
-            const data = await window.electronExcel.excel_get_unidad_pesos({unidad});
+            const data = await window.electronExcel.getUnidadPesos({unidad});
             const pesos = data.pesos || [0.25, 0.25, 0.25, 0.25];
 
             document.getElementById('peso_i1').value = pesos[0];
@@ -1404,7 +1404,7 @@
             ];
 
             try {
-                await window.electronExcel.excel_save_unidad_pesos({ unidad, pesos });
+                await window.electronExcel.saveUnidadPesos({ unidad, pesos });
                 mostrarMensaje(`Ponderaciones guardadas para ${unidad}`, 'success');
                 document.getElementById('ponderacionesSection').style.display = 'none';
             } catch (error) {
