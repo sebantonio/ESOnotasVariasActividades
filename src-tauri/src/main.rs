@@ -3158,12 +3158,12 @@ fn excel_get_unidad_pesos_impl(payload: Value) -> Result<Value, String> {
 
     let rows = read_sheet_rows(&path, &unidad)?;
 
-    // Fila 3 (0-idx 2): C3:F3 = columnas 2:5
+    // Fila 4 (0-idx 3): C4:F4 = columnas 2:5
     let pesos = [
-        cell_f64(&rows, 2, 2).unwrap_or(0.25),  // C3 = i1
-        cell_f64(&rows, 2, 3).unwrap_or(0.25),  // D3 = i2
-        cell_f64(&rows, 2, 4).unwrap_or(0.25),  // E3 = i3
-        cell_f64(&rows, 2, 5).unwrap_or(0.25),  // F3 = i4
+        cell_f64(&rows, 3, 2).unwrap_or(0.25),  // C4 = i1
+        cell_f64(&rows, 3, 3).unwrap_or(0.25),  // D4 = i2
+        cell_f64(&rows, 3, 4).unwrap_or(0.25),  // E4 = i3
+        cell_f64(&rows, 3, 5).unwrap_or(0.25),  // F4 = i4
     ];
 
     Ok(json!({ "pesos": pesos }))
@@ -3201,9 +3201,9 @@ fn excel_save_unidad_pesos_impl(payload: Value) -> Result<Value, String> {
     let pesos_owned = pesos_f64.clone();
     let edit_fn: Box<dyn Fn(&str) -> Result<String, String>> = Box::new(move |xml: &str| {
         let mut s = xml.to_string();
-        // Fila 3 (0-idx 2), columnas C:F (0-idx 2:5)
+        // Fila 4 (0-idx 3), columnas C:F (0-idx 2:5)
         for (i, &peso) in pesos_owned.iter().enumerate() {
-            s = set_xml_cell(&s, 2, 2 + i, Some(&json!(peso)), "number")?;
+            s = set_xml_cell(&s, 3, 2 + i, Some(&json!(peso)), "number")?;
         }
         Ok(s)
     });
