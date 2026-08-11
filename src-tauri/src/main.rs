@@ -3141,6 +3141,78 @@ fn save_csv_template(filename: String, content: String) -> Result<bool, String> 
     }
 }
 
+// ---------------------------------------------------------------------------
+// Pesos de criterios por unidad
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+async fn excel_get_unidad_pesos(payload: Value) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || excel_get_unidad_pesos_impl(payload))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn excel_get_unidad_pesos_impl(payload: Value) -> Result<Value, String> {
+    let path = require_selected_path()?;
+    let unidad = payload["unidad"].as_str().ok_or("Falta unidad")?.to_string();
+
+    let rows = read_sheet_rows(&path, &unidad)?;
+
+    // Fila 5 (0-idx 4): C5:F5 = columnas 2:5
+    let pesos = [
+        cell_f64(&rows, 4, 2).unwrap_or(0.25),  // C5 = i1
+        cell_f64(&rows, 4, 3).unwrap_or(0.25),  // D5 = i2
+        cell_f64(&rows, 4, 4).unwrap_or(0.25),  // E5 = i3
+        cell_f64(&rows, 4, 5).unwrap_or(0.25),  // F5 = i4
+    ];
+
+    Ok(json!({ "pesos": pesos }))
+}
+
+#[tauri::command]
+async fn excel_save_unidad_pesos(payload: Value) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || excel_save_unidad_pesos_impl(payload))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn excel_save_unidad_pesos_impl(payload: Value) -> Result<Value, String> {
+    let path = require_selected_path()?;
+    let unidad = payload["unidad"].as_str().ok_or("Falta unidad")?.to_string();
+    let pesos = payload["pesos"].as_array().ok_or("Falta pesos")?;
+
+    if pesos.len() != 4 {
+        return Err("Se requieren exactamente 4 pesos".to_string());
+    }
+
+    let pesos_f64: Vec<f64> = pesos.iter()
+        .filter_map(|p| p.as_f64())
+        .collect();
+
+    if pesos_f64.len() != 4 {
+        return Err("Todos los pesos deben ser números".to_string());
+    }
+
+    let suma: f64 = pesos_f64.iter().sum();
+    if (suma - 1.0).abs() > 0.001 {
+        return Err(format!("Suma debe ser 1.0 (100%), es {:.2}", suma));
+    }
+
+    let pesos_owned = pesos_f64.clone();
+    let edit_fn: Box<dyn Fn(&str) -> Result<String, String>> = Box::new(move |xml: &str| {
+        let mut s = xml.to_string();
+        // Fila 5 (0-idx 4), columnas C:F (0-idx 2:5)
+        for (i, &peso) in pesos_owned.iter().enumerate() {
+            s = set_xml_cell(&s, 4, 2 + i, Some(&json!(peso)), "number")?;
+        }
+        Ok(s)
+    });
+
+    edit_workbook_sheets_xml(&path, vec![(unidad.as_str(), edit_fn)])?;
+
+    Ok(json!({ "pesos": pesos_f64 }))
+}
+
 #[cfg(test)]
 mod formula_cache_tests {
     use super::*;
@@ -3577,7 +3649,7 @@ fn main() {
             excel_get_notas_actividad, excel_get_notas_actividades_tipo,
             excel_save_notas_actividad, excel_save_ce_notas, excel_add_actividad,
             excel_get_notas_evaluacion, excel_get_notas_evaluacion_alumno,
-            excel_get_notas_unidad, excel_save_notas_unidad, excel_save_unidad_instrumentos, excel_resync_unidad_eval, excel_get_alumnos_informes, app_open_external,
+            excel_get_notas_unidad, excel_save_notas_unidad, excel_save_unidad_instrumentos, excel_resync_unidad_eval, excel_get_unidad_pesos, excel_save_unidad_pesos, excel_get_alumnos_informes, app_open_external,
             excel_get_diario, excel_save_diario_entrada, excel_delete_diario_entrada,
             excel_get_instrumentos, excel_save_instrumentos, save_csv_template, excel_download_template
         ])
