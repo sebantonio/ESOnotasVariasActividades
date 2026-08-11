@@ -909,6 +909,31 @@
             </section>
             <p style="margin: 8px 0 0; color:#6b7280; font-size:0.82rem;">Atajos: Ctrl+S guarda, Alt+C enfoca el primer CE del alumno activo.</p>
 
+            <!-- Panel: Ponderaciones de Instrumentos -->
+            <div class="ponderaciones-panel">
+                <div class="ponderaciones-header" onclick="togglePonderaciones()">
+                    <span class="header-title">Ponderaciones de Instrumentos</span>
+                    <span class="chevron">▼</span>
+                    <span class="unsaved-indicator" id="unsavedIndicator" style="display:none;">●</span>
+                </div>
+                <div class="ponderaciones-content" id="ponderacionesContent" style="display:flex;">
+                    <div class="ponderaciones-body">
+                        <div class="slots-grid" id="slotsGrid">
+                            <!-- Generado por JS -->
+                        </div>
+                        <div class="suma-row">
+                            <label>Suma total:</label>
+                            <span id="sumaPesos">0%</span>
+                            <span id="sumaPesosAviso"></span>
+                        </div>
+                        <div class="button-row">
+                            <button type="button" onclick="guardarPonderaciones()" class="btn-primary">Guardar</button>
+                            <button type="button" onclick="cancelarPonderaciones()" class="btn-secondary">Cancelar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <section>
                 <div class="table-container">
                     <table>
