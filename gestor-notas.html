@@ -966,6 +966,7 @@
         let busyDelayTimer = null;
         let currentQuickFilter = "all";
         let savingNotas = false;
+        let saveQueue = Promise.resolve();  // Cola de guardados para evitar concurrencia
 
         const messageBox = document.getElementById("message");
         const unidadSelect = document.getElementById("unidadSelect");
@@ -1773,7 +1774,7 @@
             crNota.dirty = false;
             input.classList.remove("dirty-note");
 
-            return window.electronExcel.saveNotasUnidad(payload).then(() => {
+            return queuedSaveNotasUnidad(payload).then(() => {
                 input.classList.add("saved-note");
                 setTimeout(() => input.classList.remove("saved-note"), 1200);
                 _notasCache.delete(currentState.unidad);
@@ -1839,12 +1840,15 @@
                     syncEval: true  // Botón manual: sí sincroniza con evaluación
                 };
 
-                // Timeout de 30s para el backend
-                const savePromise = window.electronExcel.saveNotasUnidad(payload);
-                const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error("Timeout guardando notas (30s). Verifica conexión Excel.")), SAVE_TIMEOUT_MS)
-                );
-                const data = await Promise.race([savePromise, timeoutPromise]);
+                // Usar cola para serializar guardados y evitar race conditions
+                if (pendingNotes.length === 0) {
+                    if (!options.silent) {
+                        showMessage("No hay cambios que guardar.", "info");
+                    }
+                    return true;
+                }
+
+                const data = await queuedSaveNotasUnidad(payload);
                 currentState = data;
                 currentNotes = (data.alumnos || []).map((item) => ({ ...item }));
                 // Invalidar caché de esta clave para que la próxima carga relean datos actualizados
@@ -1883,6 +1887,14 @@
                     if (floatingSaveButton) { floatingSaveButton.disabled = false; floatingSaveButton.textContent = "Guardar notas"; }
                 }
             }
+        }
+
+        // Cola de guardados: serializa múltiples guardados para evitar race conditions
+        function queuedSaveNotasUnidad(payload) {
+            const run = () => window.electronExcel.saveNotasUnidad(payload);
+            const result = saveQueue.then(run, run);
+            saveQueue = result.then(() => {}, () => {});
+            return result;
         }
 
         function validarNotasAntesDeGuardar() {
