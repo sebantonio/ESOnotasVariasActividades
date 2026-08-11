@@ -1080,6 +1080,7 @@
                         crNota[field] = parseNotaValue(input.value);
                         if (field === "rec") crNota.recDisplay = input.value;
                         else crNota[field + "Display"] = input.value;
+                        crNota.dirty = true;  // CRÍTICO: marcar como dirty para que saveNotaCellFromInput guarde
 
                         // Calcular FINAL automáticamente cuando cambian i1-i4
                         if (["i1", "i2", "i3", "i4"].includes(field)) {
