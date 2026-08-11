@@ -953,12 +953,13 @@
         let currentState = null;
         let currentNotes = [];
         let autoSaveTimeout = null;
+        const AUTO_SAVE_DELAY_MS = 2000;
+        const SAVE_TIMEOUT_MS = 30000; // timeout 30s para backend
         let hayCambiosSinGuardar = false;
         const _BASE_TITLE = document.title;
         let studentSearch = '';
         let currentPage = 0;
         let perPage = 15;
-        const AUTO_SAVE_DELAY_MS = 60000;
         const VIEW_PREFS_KEY = "gestorNotasViewPrefs";
         const _notasCache = new Map();
         let busyCount = 0;
@@ -1078,6 +1079,12 @@
                         crNota[field] = parseNotaValue(input.value);
                         if (field === "rec") crNota.recDisplay = input.value;
                         else crNota[field + "Display"] = input.value;
+
+                        // Calcular FINAL automáticamente cuando cambian i1-i4
+                        if (["i1", "i2", "i3", "i4"].includes(field)) {
+                            updateFinalDisplay(studentIdx, crCodigo);
+                        }
+
                         input.classList.add("dirty-note");
                         input.classList.remove("saved-note");
                         renderSummary(currentState);
@@ -1105,6 +1112,8 @@
                 const input = event.target;
                 if (input.classList && input.classList.contains("nota-cr")) {
                     updateNoteValidation(input);
+                    // Guardar celda individual en blur (patrón ESOplantillaNotas)
+                    saveNotaCellFromInput(input);
                 }
             });
 
@@ -1245,6 +1254,16 @@
                     clearTimeout(autoSaveTimeout);
                     autoSaveTimeout = null;
                 }
+
+                // Cargar pesos de esta unidad
+                try {
+                    const pesosData = await window.electronExcel.excel_get_unidad_pesos({unidad: currentState.unidad});
+                    currentState.unidadPesos = pesosData.pesos;
+                } catch (e) {
+                    console.warn("No se pudieron cargar pesos, usando defaults:", e);
+                    currentState.unidadPesos = [0.25, 0.25, 0.25, 0.25];
+                }
+
                 renderControls(data);
                 renderSummary(data);
                 renderTable();
@@ -1646,7 +1665,7 @@
                             ${fieldInput('i2', crFieldDisplay(crNota, 'i2'))}
                             ${fieldInput('i3', crFieldDisplay(crNota, 'i3'))}
                             ${fieldInput('i4', crFieldDisplay(crNota, 'i4'))}
-                            <span class="final-display" title="Nota final del criterio (calculada, solo lectura)">${finalTxt}</span>
+                            <span class="final-display" data-cr-codigo="${escapeHtml(cr.codigo)}" title="Nota final del criterio (calculada, solo lectura)">${finalTxt}</span>
                             ${fieldInput('rec', crFieldDisplay(crNota, 'rec'), 'rec-input')}
                         </div>
                     </td>`;
@@ -1691,6 +1710,92 @@
             });
             html += '</tr>';
             notasTfoot.innerHTML = html;
+        }
+
+// Calcula el FINAL (media ponderada) basado en i1-i4 y pesos de la unidad
+        function calculateFinal(crNota, instrumentos, unidadPesos) {
+            if (!crNota) return null;
+
+            const values = [crNota.i1, crNota.i2, crNota.i3, crNota.i4];
+            const weights = unidadPesos || [0.25, 0.25, 0.25, 0.25];  // Default si no se pasan pesos
+
+            let numerator = 0, denominator = 0;
+            for (let i = 0; i < 4; i++) {
+                if (values[i] !== undefined && values[i] !== null) {
+                    numerator += weights[i] * values[i];
+                    denominator += weights[i];
+                }
+            }
+            return denominator > 0 ? numerator / denominator : null;
+        }
+
+        // Actualiza el display del FINAL cuando cambian los instrumentos
+        function updateFinalDisplay(studentIdx, crCodigo) {
+            if (!currentNotes[studentIdx]) return;
+            const crNota = currentNotes[studentIdx].crNotas?.find(n => n.codigo === crCodigo);
+            if (!crNota) return;
+            const final = calculateFinal(crNota, null, currentState.unidadPesos);  // ← pasar pesos
+            crNota.final = final;
+            // Actualizar el DOM del FINAL
+            const row = document.querySelector(`tr[data-student-idx="${studentIdx}"]`);
+            if (row) {
+                const finalSpan = row.querySelector(`.final-display[data-cr-codigo="${crCodigo}"]`);
+                if (finalSpan) {
+                    finalSpan.textContent = final !== null ? final.toFixed(1).replace(".", ",") : "—";
+                }
+            }
+        }
+
+        // Guarda 1 celda cuando pierde foco (patrón ESOplantillaNotas)
+        async function saveNotaCellFromInput(input) {
+            if (validateGrade(input.value).isInvalid) return Promise.resolve();
+            if (!currentState) return Promise.resolve();
+
+            const row = input.closest("tr");
+            const studentIdx = Number(row?.dataset.studentIdx);
+            const rowIdx = Number(row?.dataset.rowIdx);
+            const crCodigo = input.dataset.crCodigo;
+            const colIdx = Number(input.dataset.crColidx);
+            const field = input.dataset.field;
+            if (Number.isNaN(rowIdx) || Number.isNaN(colIdx) || !crCodigo || !field) return Promise.resolve();
+
+            const alumno = currentNotes[studentIdx];
+            const crNota = (alumno?.crNotas || []).find((n) => n.codigo === crCodigo);
+            if (!crNota || !crNota.dirty) return Promise.resolve();
+
+            const payload = {
+                unidad: currentState.unidad,
+                notas: [{
+                    rowIdx,
+                    crNotas: {
+                        [crCodigo]: {
+                            colIdx,
+                            i1: crNota.i1 !== undefined ? crNota.i1 : null,
+                            i2: crNota.i2 !== undefined ? crNota.i2 : null,
+                            i3: crNota.i3 !== undefined ? crNota.i3 : null,
+                            i4: crNota.i4 !== undefined ? crNota.i4 : null,
+                            rec: crNota.rec !== undefined ? crNota.rec : parseNotaValue(crNota.recDisplay)
+                        }
+                    }
+                }]
+            };
+
+            crNota.dirty = false;
+            input.classList.remove("dirty-note");
+
+            return window.electronExcel.saveNotasUnidad(payload).then(() => {
+                input.classList.add("saved-note");
+                setTimeout(() => input.classList.remove("saved-note"), 1200);
+                _notasCache.delete(currentState.unidad);
+                hayCambiosSinGuardar = getPendingDirtyCount() > 0;
+                if (!hayCambiosSinGuardar) document.title = _BASE_TITLE;
+                if (lastSyncStatus) lastSyncStatus.textContent = `Guardado ${new Date().toLocaleTimeString()}`;
+                updateStatusBar();
+            }).catch((error) => {
+                crNota.dirty = true;
+                input.classList.add("dirty-note");
+                showMessage("Error al guardar nota: " + (error.message || error), "error");
+            });
         }
 
         async function saveNotas(options = {}) {
@@ -1738,7 +1843,12 @@
                     })
                 };
 
-                const data = await window.electronExcel.saveNotasUnidad(payload);
+                // Timeout de 30s para el backend
+                const savePromise = window.electronExcel.saveNotasUnidad(payload);
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("Timeout guardando notas (30s). Verifica conexión Excel.")), SAVE_TIMEOUT_MS)
+                );
+                const data = await Promise.race([savePromise, timeoutPromise]);
                 currentState = data;
                 currentNotes = (data.alumnos || []).map((item) => ({ ...item }));
                 // Invalidar caché de esta clave para que la próxima carga relean datos actualizados
@@ -2011,8 +2121,8 @@
             hayCambiosSinGuardar = true;
             if (!document.title.startsWith('*')) document.title = '* ' + _BASE_TITLE;
             updateStatusBar();
-            if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
-            autoSaveTimeout = setTimeout(() => guardarCambiosAutomaticamente(), AUTO_SAVE_DELAY_MS);
+            // Autosave es por blur en saveNotaCellFromInput, no aquí
+            // El guardado de celda ocurre cuando pierde foco
         }
 
         async function guardarCambiosAutomaticamente() {
