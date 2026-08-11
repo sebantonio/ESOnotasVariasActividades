@@ -967,6 +967,8 @@
         let currentQuickFilter = "all";
         let savingNotas = false;
         let saveQueue = Promise.resolve();  // Cola de guardados para evitar concurrencia
+        let evalSyncTimeout = null;  // Timer para sincronizar evaluaciones
+        let evalSyncUnidad = null;   // Unidad pendiente de sincronizar
 
         const messageBox = document.getElementById("message");
         const unidadSelect = document.getElementById("unidadSelect");
@@ -1783,6 +1785,7 @@
                 if (!hayCambiosSinGuardar) document.title = _BASE_TITLE;
                 if (lastSyncStatus) lastSyncStatus.textContent = `Guardado ${new Date().toLocaleTimeString()}`;
                 updateStatusBar();
+                scheduleEvalSync(currentState.unidad);
             }).catch((error) => {
                 crNota.dirty = true;
                 input.classList.add("dirty-note");
@@ -1896,6 +1899,43 @@
             const result = saveQueue.then(run, run);
             saveQueue = result.then(() => {}, () => {});
             return result;
+        }
+
+        function scheduleEvalSync(unidad) {
+            evalSyncUnidad = unidad;
+            if (evalSyncTimeout) clearTimeout(evalSyncTimeout);
+            evalSyncTimeout = setTimeout(flushEvalSync, 1500);
+        }
+
+        async function flushEvalSync() {
+            evalSyncTimeout = null;
+            const unidad = evalSyncUnidad;
+            const entries = currentNotes.flatMap((alumno, idx) =>
+                (alumno.crNotas || [])
+                    .filter(cr => cr.needsEvalSync)
+                    .map(crNota => ({ alumno, crNota, studentIdx: idx }))
+            );
+            if (!entries.length || !unidad) return;
+
+            const notasByRow = new Map();
+            entries.forEach(({ alumno, crNota }) => {
+                if (!notasByRow.has(alumno.rowIdx)) notasByRow.set(alumno.rowIdx, {});
+                notasByRow.get(alumno.rowIdx)[crNota.codigo] = {
+                    colIdx: crNota.colIdx,
+                    i1: crNota.i1 !== undefined ? crNota.i1 : null,
+                    i2: crNota.i2 !== undefined ? crNota.i2 : null,
+                    i3: crNota.i3 !== undefined ? crNota.i3 : null,
+                    i4: crNota.i4 !== undefined ? crNota.i4 : null,
+                    rec: crNota.rec !== undefined ? crNota.rec : null
+                };
+            });
+            const notas = Array.from(notasByRow.entries()).map(([rowIdx, crNotas]) => ({ rowIdx, crNotas }));
+            try {
+                await queuedSaveNotasUnidad({ unidad, notas, syncEval: true });
+                entries.forEach(({ crNota }) => { crNota.needsEvalSync = false; });
+            } catch (error) {
+                showMessage("Error al sincronizar evaluaciones: " + (error.message || error), "error");
+            }
         }
 
         function validarNotasAntesDeGuardar() {
@@ -2130,8 +2170,8 @@
             hayCambiosSinGuardar = true;
             if (!document.title.startsWith('*')) document.title = '* ' + _BASE_TITLE;
             updateStatusBar();
-            // Autosave es por blur en saveNotaCellFromInput, no aquí
-            // El guardado de celda ocurre cuando pierde foco
+            if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+            autoSaveTimeout = setTimeout(() => guardarCambiosAutomaticamente(), AUTO_SAVE_DELAY_MS);
         }
 
         async function guardarCambiosAutomaticamente() {
