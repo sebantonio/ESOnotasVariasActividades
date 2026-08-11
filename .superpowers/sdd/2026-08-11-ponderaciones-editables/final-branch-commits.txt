@@ -1,0 +1,12 @@
+2310fbe docs: update progress - Task 6 integration verified and fixed
+7edeb0e test: Task 6 - Integration bug FIXED, all code paths verified as correct
+86f4e9d fix: actualizar llamadas de métodos en ponderaciones a nombres correctos del bridge
+93a78f1 fix: agregar métodos faltantes excel_get_unidad_pesos y excel_save_unidad_pesos a app-bridge.js
+9a6168c test: Task 6 - Testing Manual - BLOCKED by integration bug
+f33a6f4 docs: agregar Fix Round 1/5 scope creep removal a task-5-report.md
+7d973ce fix: revertir scope creep Task 4, mantener solo código Task 5
+8d2c94c feat: integrar pesos en cálculo FINAL de gestor-notas
+9b2bfa6 feat: agregar handlers para guardar/cancelar ponderaciones (Task 4)
+812f208 feat: agregar comandos IPC excel_get_unidad_pesos y excel_save_unidad_pesos
+7fa063e feat: Task 2 - cargar unidades en dropdown + validación en tiempo real
+d8eb519 feat(ponderaciones): agregar UI para configurar ponderaciones por unidad

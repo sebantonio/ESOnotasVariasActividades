@@ -1,0 +1,8 @@
+ .../2026-08-11-ponderaciones-editables/progress.md |  28 +++
+ .../task-5-report.md                               | 201 +++++++++++++++++
+ .../task-6-report.md                               | 246 +++++++++++++++++++++
+ app-bridge.js                                      |   2 +
+ src-tauri/src/main.rs                              |  74 ++++++-
+ tauri-web/gestor-notas.html                        |  63 +++++-
+ tauri-web/gestor-unidades.html                     | 182 +++++++++++++++
+ 7 files changed, 791 insertions(+), 5 deletions(-)

@@ -1,0 +1,46 @@
+diff --git a/tauri-web/gestor-unidades.html b/tauri-web/gestor-unidades.html
+index eef1542..3b49352 100644
+--- a/tauri-web/gestor-unidades.html
++++ b/tauri-web/gestor-unidades.html
+@@ -1380,13 +1380,41 @@
+                 validationMsg.textContent = `✗ Suma = ${Math.round(suma * 100)}% (debe ser 100%)`;
+                 validationMsg.style.display = 'block';
+                 document.getElementById('guardarPonderacionesBtn').disabled = true;
+             }
+         }
+ 
+         // Escuchar cambios en inputs
+         ['peso_i1', 'peso_i2', 'peso_i3', 'peso_i4'].forEach(id => {
+             document.getElementById(id).addEventListener('input', actualizarValidacion);
+         });
++
++        // ===== GUARDAR PONDERACIONES =====
++        document.getElementById('guardarPonderacionesBtn').addEventListener('click', async () => {
++            const unidad = document.getElementById('unidadSelector').value;
++            if (!unidad) {
++                mostrarMensaje('Selecciona una unidad', 'error');
++                return;
++            }
++
++            const pesos = [
++                parseFloat(document.getElementById('peso_i1').value),
++                parseFloat(document.getElementById('peso_i2').value),
++                parseFloat(document.getElementById('peso_i3').value),
++                parseFloat(document.getElementById('peso_i4').value)
++            ];
++
++            try {
++                await window.electronExcel.excel_save_unidad_pesos({ unidad, pesos });
++                mostrarMensaje(`Ponderaciones guardadas para ${unidad}`, 'success');
++                document.getElementById('ponderacionesSection').style.display = 'none';
++            } catch (error) {
++                mostrarMensaje(error.message || 'Error al guardar', 'error');
++            }
++        });
++
++        document.getElementById('cancelarPonderacionesBtn').addEventListener('click', () => {
++            document.getElementById('ponderacionesSection').style.display = 'none';
++        });
+     </script>
+ </body>
+ </html>
