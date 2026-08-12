@@ -812,6 +812,178 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        .ponderaciones-panel {
+            margin-bottom: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: #f8f9ff;
+            overflow: hidden;
+        }
+
+        .ponderaciones-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            background: #f0f2ff;
+            cursor: pointer;
+            user-select: none;
+            border-bottom: 1px solid #e0e0e0;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .ponderaciones-header:hover {
+            background: #e8eaff;
+        }
+
+        .ponderaciones-header .header-title {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .ponderaciones-header .chevron {
+            font-size: 0.9em;
+            transition: transform 0.2s ease;
+        }
+
+        .ponderaciones-header.collapsed .chevron {
+            transform: rotate(-90deg);
+        }
+
+        .ponderaciones-header .unsaved-indicator {
+            width: 8px;
+            height: 8px;
+            background: #f59e0b;
+            border-radius: 50%;
+            margin-left: 6px;
+        }
+
+        .ponderaciones-content {
+            display: flex;
+            padding: 14px 16px;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .ponderaciones-content[style*="display:none"] {
+            display: none !important;
+        }
+
+        .ponderaciones-body {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .slots-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .slot-item {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+        }
+
+        .slot-item label {
+            font-size: 0.82em;
+            font-weight: 700;
+            color: #4b5563;
+        }
+
+        .slot-item select,
+        .slot-item input {
+            width: 100%;
+            min-height: 34px;
+            padding: 6px 9px;
+            border: 1px solid #d7d7d7;
+            border-radius: 6px;
+            font: inherit;
+            font-size: 0.92rem;
+            background: white;
+        }
+
+        .slot-item select:focus,
+        .slot-item input:focus {
+            outline: none;
+            border-color: var(--color-accent);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.13);
+        }
+
+        .suma-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 0.92em;
+        }
+
+        .suma-row label {
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .suma-row #sumaPesos {
+            font-weight: 700;
+            color: #10b981;
+        }
+
+        .suma-row.invalid #sumaPesos {
+            color: #f59e0b;
+        }
+
+        .suma-row #sumaPesosAviso {
+            color: #f59e0b;
+            font-size: 0.85em;
+            margin-left: 8px;
+        }
+
+        .suma-row.valid #sumaPesosAviso {
+            display: none;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn-primary,
+        .btn-secondary {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.92rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .btn-primary {
+            background: var(--color-accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--color-accent-strong);
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
     </style>
 </head>
 <body class="ux-app-shell ux-page-gestor-notas">
@@ -1284,6 +1456,7 @@
                     autoSaveTimeout = null;
                 }
                 renderControls(data);
+                cargarPonderacionesPanel(data);
                 renderSummary(data);
                 renderTable();
                 if (lastSyncStatus) {
@@ -2295,6 +2468,161 @@
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
+        }
+
+        // ─── PONDERACIONES DE INSTRUMENTOS ───
+        let ponderacionesModales = [];
+        let ponderacionesOriginal = [];
+        let instrumentosCatalogo = [];
+
+        async function cargarPonderacionesPanel(data) {
+            try {
+                if (!data.instrumentosUnidad) return;
+
+                const slots = Array.isArray(data.instrumentosUnidad) ? [...data.instrumentosUnidad] : [];
+                while (slots.length < 4) {
+                    slots.push({ instrumento: "", peso: 0 });
+                }
+
+                ponderacionesOriginal = JSON.parse(JSON.stringify(slots));
+                ponderacionesModales = JSON.parse(JSON.stringify(slots));
+
+                if (instrumentosCatalogo.length === 0) {
+                    const instData = await window.electronExcel.getInstrumentos().catch(() => ({ instrumentos: [] }));
+                    instrumentosCatalogo = instData.instrumentos || [];
+                }
+
+                renderizarSlotsGrid();
+                actualizarSumaPesos();
+                limpiarPonderacionesCambiadas();
+            } catch (error) {
+                console.error("Error al cargar panel ponderaciones:", error);
+            }
+        }
+
+        function renderizarSlotsGrid() {
+            const grid = document.getElementById("slotsGrid");
+            grid.innerHTML = "";
+            for (let i = 0; i < 4; i++) {
+                const slot = ponderacionesModales[i] || { instrumento: "", peso: 0 };
+                const slotDiv = document.createElement("div");
+                slotDiv.className = "slot-item";
+                slotDiv.innerHTML = `
+                    <label>Instrumento ${i + 1}</label>
+                    <select data-slot="${i}" onchange="handleSlotChange(${i}, 'instrumento')">
+                        <option value="">— Ninguno —</option>
+                        ${instrumentosCatalogo.map(inst =>
+                            `<option value="${escapeHtml(inst.instrumento)}" ${slot.instrumento === inst.instrumento ? 'selected' : ''}>${escapeHtml(inst.instrumento)} - ${escapeHtml(inst.nombre)}</option>`
+                        ).join('')}
+                    </select>
+                `;
+                grid.appendChild(slotDiv);
+
+                const pesoDiv = document.createElement("div");
+                pesoDiv.className = "slot-item";
+                pesoDiv.innerHTML = `
+                    <label>Peso ${i + 1} (%)</label>
+                    <input type="number" data-slot="${i}" value="${slot.peso}" min="0" max="100" onchange="handleSlotChange(${i}, 'peso')" oninput="handleSlotChange(${i}, 'peso')">
+                `;
+                grid.appendChild(pesoDiv);
+            }
+        }
+
+        function handleSlotChange(slotIdx, field) {
+            if (!ponderacionesModales[slotIdx]) {
+                ponderacionesModales[slotIdx] = { instrumento: "", peso: 0 };
+            }
+
+            if (field === "instrumento") {
+                const select = document.querySelector(`select[data-slot="${slotIdx}"]`);
+                if (select) ponderacionesModales[slotIdx].instrumento = select.value;
+            } else if (field === "peso") {
+                const input = document.querySelector(`input[data-slot="${slotIdx}"]`);
+                if (input) ponderacionesModales[slotIdx].peso = parseInt(input.value) || 0;
+            }
+
+            marcarPonderacionesCambiadas();
+            actualizarSumaPesos();
+        }
+
+        function actualizarSumaPesos() {
+            const suma = ponderacionesModales.reduce((acc, slot) => acc + (slot?.peso || 0), 0);
+            const sumaPesosEl = document.getElementById("sumaPesos");
+            const avisoEl = document.getElementById("sumaPesosAviso");
+            const sumaRowEl = sumaPesosEl?.closest(".suma-row");
+
+            sumaPesosEl.textContent = `${suma}%`;
+
+            if (sumaRowEl) {
+                if (suma === 100) {
+                    sumaRowEl.classList.remove("invalid");
+                    sumaRowEl.classList.add("valid");
+                    if (avisoEl) avisoEl.textContent = "";
+                } else {
+                    sumaRowEl.classList.add("invalid");
+                    sumaRowEl.classList.remove("valid");
+                    if (avisoEl) avisoEl.textContent = `⚠ Total debe ser 100%`;
+                }
+            }
+        }
+
+        function togglePonderaciones() {
+            const content = document.getElementById("ponderacionesContent");
+            const header = document.querySelector(".ponderaciones-header");
+            const isHidden = content.style.display === "none";
+            content.style.display = isHidden ? "flex" : "none";
+            header.classList.toggle("collapsed", !isHidden);
+        }
+
+        function marcarPonderacionesCambiadas() {
+            const indicator = document.getElementById("unsavedIndicator");
+            if (indicator && !deepEqual(ponderacionesModales, ponderacionesOriginal)) {
+                indicator.style.display = "inline-block";
+            }
+        }
+
+        function limpiarPonderacionesCambiadas() {
+            const indicator = document.getElementById("unsavedIndicator");
+            if (indicator) {
+                indicator.style.display = "none";
+            }
+        }
+
+        function deepEqual(a, b) {
+            return JSON.stringify(a) === JSON.stringify(b);
+        }
+
+        async function guardarPonderaciones() {
+            try {
+                beginBusy("Guardando ponderaciones...");
+                const result = await window.electronExcel.saveInstrumentos({
+                    unidad: currentState.unidad,
+                    instrumentosUnidad: ponderacionesModales.map(slot => ({
+                        instrumento: slot?.instrumento || "",
+                        peso: slot?.peso || 0
+                    }))
+                });
+
+                if (result) {
+                    ponderacionesOriginal = JSON.parse(JSON.stringify(ponderacionesModales));
+                    limpiarPonderacionesCambiadas();
+                    showMessage("Ponderaciones guardadas correctamente.", "success");
+                    currentState.instrumentosUnidad = JSON.parse(JSON.stringify(ponderacionesModales));
+                } else {
+                    showMessage("Error al guardar ponderaciones.", "error");
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, "error");
+            } finally {
+                endBusy();
+            }
+        }
+
+        function cancelarPonderaciones() {
+            ponderacionesModales = JSON.parse(JSON.stringify(ponderacionesOriginal));
+            renderizarSlotsGrid();
+            actualizarSumaPesos();
+            limpiarPonderacionesCambiadas();
         }
     </script>
 
