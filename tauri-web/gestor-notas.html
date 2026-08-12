@@ -812,6 +812,178 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        .ponderaciones-panel {
+            margin-bottom: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: #f8f9ff;
+            overflow: hidden;
+        }
+
+        .ponderaciones-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            background: #f0f2ff;
+            cursor: pointer;
+            user-select: none;
+            border-bottom: 1px solid #e0e0e0;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .ponderaciones-header:hover {
+            background: #e8eaff;
+        }
+
+        .ponderaciones-header .header-title {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .ponderaciones-header .chevron {
+            font-size: 0.9em;
+            transition: transform 0.2s ease;
+        }
+
+        .ponderaciones-header.collapsed .chevron {
+            transform: rotate(-90deg);
+        }
+
+        .ponderaciones-header .unsaved-indicator {
+            width: 8px;
+            height: 8px;
+            background: #f59e0b;
+            border-radius: 50%;
+            margin-left: 6px;
+        }
+
+        .ponderaciones-content {
+            display: flex;
+            padding: 14px 16px;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .ponderaciones-content[style*="display:none"] {
+            display: none !important;
+        }
+
+        .ponderaciones-body {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .slots-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .slot-item {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+        }
+
+        .slot-item label {
+            font-size: 0.82em;
+            font-weight: 700;
+            color: #4b5563;
+        }
+
+        .slot-item select,
+        .slot-item input {
+            width: 100%;
+            min-height: 34px;
+            padding: 6px 9px;
+            border: 1px solid #d7d7d7;
+            border-radius: 6px;
+            font: inherit;
+            font-size: 0.92rem;
+            background: white;
+        }
+
+        .slot-item select:focus,
+        .slot-item input:focus {
+            outline: none;
+            border-color: var(--color-accent);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.13);
+        }
+
+        .suma-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 0.92em;
+        }
+
+        .suma-row label {
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .suma-row #sumaPesos {
+            font-weight: 700;
+            color: #10b981;
+        }
+
+        .suma-row.invalid #sumaPesos {
+            color: #f59e0b;
+        }
+
+        .suma-row #sumaPesosAviso {
+            color: #f59e0b;
+            font-size: 0.85em;
+            margin-left: 8px;
+        }
+
+        .suma-row.valid #sumaPesosAviso {
+            display: none;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn-primary,
+        .btn-secondary {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.92rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .btn-primary {
+            background: var(--color-accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--color-accent-strong);
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
     </style>
 </head>
 <body class="ux-app-shell ux-page-gestor-notas">
@@ -909,6 +1081,31 @@
             </section>
             <p style="margin: 8px 0 0; color:#6b7280; font-size:0.82rem;">Atajos: Ctrl+S guarda, Alt+C enfoca el primer CE del alumno activo.</p>
 
+            <!-- Panel: Ponderaciones de Instrumentos -->
+            <div class="ponderaciones-panel">
+                <div class="ponderaciones-header" onclick="togglePonderaciones()">
+                    <span class="header-title">Ponderaciones de Instrumentos</span>
+                    <span class="chevron">▼</span>
+                    <span class="unsaved-indicator" id="unsavedIndicator" style="display:none;">●</span>
+                </div>
+                <div class="ponderaciones-content" id="ponderacionesContent" style="display:flex;">
+                    <div class="ponderaciones-body">
+                        <div class="slots-grid" id="slotsGrid">
+                            <!-- Generado por JS -->
+                        </div>
+                        <div class="suma-row">
+                            <label>Suma total:</label>
+                            <span id="sumaPesos">0%</span>
+                            <span id="sumaPesosAviso"></span>
+                        </div>
+                        <div class="button-row">
+                            <button type="button" onclick="guardarPonderaciones()" class="btn-primary">Guardar</button>
+                            <button type="button" onclick="cancelarPonderaciones()" class="btn-secondary">Cancelar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <section>
                 <div class="table-container">
                     <table>
@@ -953,7 +1150,8 @@
         let currentState = null;
         let currentNotes = [];
         let autoSaveTimeout = null;
-        const AUTO_SAVE_DELAY_MS = 60000;
+        const AUTO_SAVE_DELAY_MS = 2000;
+        const SAVE_TIMEOUT_MS = 30000; // timeout 30s para backend
         let hayCambiosSinGuardar = false;
         const _BASE_TITLE = document.title;
         let studentSearch = '';
@@ -965,6 +1163,9 @@
         let busyDelayTimer = null;
         let currentQuickFilter = "all";
         let savingNotas = false;
+        let saveQueue = Promise.resolve();  // Cola de guardados para evitar concurrencia
+        let evalSyncTimeout = null;  // Timer para sincronizar evaluaciones
+        let evalSyncUnidad = null;   // Unidad pendiente de sincronizar
 
         const messageBox = document.getElementById("message");
         const unidadSelect = document.getElementById("unidadSelect");
@@ -1078,6 +1279,7 @@
                         crNota[field] = parseNotaValue(input.value);
                         if (field === "rec") crNota.recDisplay = input.value;
                         else crNota[field + "Display"] = input.value;
+                        crNota.dirty = true;  // CRÍTICO: marcar como dirty para que saveNotaCellFromInput guarde
 
                         // Calcular FINAL automáticamente cuando cambian i1-i4
                         if (["i1", "i2", "i3", "i4"].includes(field)) {
@@ -1111,6 +1313,8 @@
                 const input = event.target;
                 if (input.classList && input.classList.contains("nota-cr")) {
                     updateNoteValidation(input);
+                    // Guardar celda individual en blur (patrón ESOplantillaNotas)
+                    saveNotaCellFromInput(input);
                 }
             });
 
@@ -1251,24 +1455,8 @@
                     clearTimeout(autoSaveTimeout);
                     autoSaveTimeout = null;
                 }
-
-                // Cargar pesos de esta unidad
-                try {
-                    const pesosData = await window.electronExcel.excel_get_unidad_pesos({unidad: currentState.unidad});
-                    currentState.unidadPesos = pesosData.pesos;
-                } catch (e) {
-                    console.warn("No se pudieron cargar pesos, usando defaults:", e);
-                    currentState.unidadPesos = [0.25, 0.25, 0.25, 0.25];
-                }
-
-                // Recalcular FINAL para todos los criterios con los nuevos pesos
-                currentNotes.forEach((alumno) => {
-                    (alumno.crNotas || []).forEach((crNota) => {
-                        crNota.final = calculateFinal(crNota, null, currentState.unidadPesos);
-                    });
-                });
-
                 renderControls(data);
+                cargarPonderacionesPanel(data);
                 renderSummary(data);
                 renderTable();
                 if (lastSyncStatus) {
@@ -1716,12 +1904,11 @@
             notasTfoot.innerHTML = html;
         }
 
-// Calcula el FINAL (media ponderada) basado en i1-i4 y pesos de la unidad
-        function calculateFinal(crNota, instrumentos, unidadPesos) {
-            if (!crNota) return null;
-
+// Calcula el FINAL (media ponderada) basado en i1-i4 e instrumentos.pesos
+        function calculateFinal(crNota, instrumentos) {
+            if (!crNota || !instrumentos || instrumentos.length === 0) return null;
             const values = [crNota.i1, crNota.i2, crNota.i3, crNota.i4];
-            const weights = unidadPesos || [0.25, 0.25, 0.25, 0.25];  // Default si no se pasan pesos
+            const weights = instrumentos.map(i => i.peso || 0);
 
             let numerator = 0, denominator = 0;
             for (let i = 0; i < 4; i++) {
@@ -1738,16 +1925,70 @@
             if (!currentNotes[studentIdx]) return;
             const crNota = currentNotes[studentIdx].crNotas?.find(n => n.codigo === crCodigo);
             if (!crNota) return;
-            const final = calculateFinal(crNota, null, currentState.unidadPesos);  // ← pasar pesos
+            const final = calculateFinal(crNota, currentState.instrumentosUnidad || []);
             crNota.final = final;
             // Actualizar el DOM del FINAL
             const row = document.querySelector(`tr[data-student-idx="${studentIdx}"]`);
             if (row) {
                 const finalSpan = row.querySelector(`.final-display[data-cr-codigo="${crCodigo}"]`);
                 if (finalSpan) {
-                    finalSpan.textContent = final !== null ? final.toFixed(1).replace(".", ",") : "—";
+                    finalSpan.textContent = final !== null ? final.toFixed(1) : "-";
                 }
             }
+        }
+
+        // Guarda 1 celda cuando pierde foco (patrón ESOplantillaNotas)
+        async function saveNotaCellFromInput(input) {
+            if (validateGrade(input.value).isInvalid) return Promise.resolve();
+            if (!currentState) return Promise.resolve();
+
+            const row = input.closest("tr");
+            const studentIdx = Number(row?.dataset.studentIdx);
+            const rowIdx = Number(row?.dataset.rowIdx);
+            const crCodigo = input.dataset.crCodigo;
+            const colIdx = Number(input.dataset.crColidx);
+            const field = input.dataset.field;
+            if (Number.isNaN(rowIdx) || Number.isNaN(colIdx) || !crCodigo || !field) return Promise.resolve();
+
+            const alumno = currentNotes[studentIdx];
+            const crNota = (alumno?.crNotas || []).find((n) => n.codigo === crCodigo);
+            if (!crNota || !crNota.dirty) return Promise.resolve();
+
+            const payload = {
+                unidad: currentState.unidad,
+                notas: [{
+                    rowIdx,
+                    crNotas: {
+                        [crCodigo]: {
+                            colIdx,
+                            i1: crNota.i1 !== undefined ? crNota.i1 : null,
+                            i2: crNota.i2 !== undefined ? crNota.i2 : null,
+                            i3: crNota.i3 !== undefined ? crNota.i3 : null,
+                            i4: crNota.i4 !== undefined ? crNota.i4 : null,
+                            rec: crNota.rec !== undefined ? crNota.rec : parseNotaValue(crNota.recDisplay)
+                        }
+                    }
+                }],
+                syncEval: false
+            };
+
+            crNota.dirty = false;
+            input.classList.remove("dirty-note");
+
+            return queuedSaveNotasUnidad(payload).then(() => {
+                input.classList.add("saved-note");
+                setTimeout(() => input.classList.remove("saved-note"), 1200);
+                _notasCache.delete(currentState.unidad);
+                hayCambiosSinGuardar = getPendingDirtyCount() > 0;
+                if (!hayCambiosSinGuardar) document.title = _BASE_TITLE;
+                if (lastSyncStatus) lastSyncStatus.textContent = `Guardado ${new Date().toLocaleTimeString()}`;
+                updateStatusBar();
+                scheduleEvalSync(currentState.unidad);
+            }).catch((error) => {
+                crNota.dirty = true;
+                input.classList.add("dirty-note");
+                showMessage("Error al guardar nota: " + (error.message || error), "error");
+            });
         }
 
         async function saveNotas(options = {}) {
@@ -1772,13 +2013,13 @@
                     showMessage("Guardando notas en el Excel...", "info");
                 }
 
-                // Construir payload: { unidad, notas: [{ rowIdx, crNotas: { "CR1.1": {colIdx, i1, i2, i3, i4, rec} } }] }
-                // FINAL nunca se envia: es una formula Excel (SUMPRODUCT) que se recalcula sola.
-                const payload = {
-                    unidad: currentState.unidad,
-                    notas: currentNotes.map((alumno) => {
+                // Recolectar SOLO cambios pendientes (dirty=true), no enviar todo
+                const pendingNotes = [];
+                currentNotes.forEach((alumno) => {
+                    const dirtyNotas = (alumno.crNotas || []).filter((cr) => cr.dirty);
+                    if (dirtyNotas.length > 0) {
                         const crNotasMap = {};
-                        (alumno.crNotas || []).forEach((crNota) => {
+                        dirtyNotas.forEach((crNota) => {
                             crNotasMap[crNota.codigo] = {
                                 colIdx: crNota.colIdx,
                                 i1: crNota.i1 !== undefined ? crNota.i1 : null,
@@ -1788,14 +2029,28 @@
                                 rec: crNota.rec !== undefined ? crNota.rec : parseNotaValue(crNota.recDisplay)
                             };
                         });
-                        return {
+                        pendingNotes.push({
                             rowIdx: alumno.rowIdx,
                             crNotas: crNotasMap
-                        };
-                    })
+                        });
+                    }
+                });
+
+                const payload = {
+                    unidad: currentState.unidad,
+                    notas: pendingNotes,
+                    syncEval: true  // Botón manual: sí sincroniza con evaluación
                 };
 
-                const data = await window.electronExcel.saveNotasUnidad(payload);
+                // Usar cola para serializar guardados y evitar race conditions
+                if (pendingNotes.length === 0) {
+                    if (!options.silent) {
+                        showMessage("No hay cambios que guardar.", "info");
+                    }
+                    return true;
+                }
+
+                const data = await queuedSaveNotasUnidad(payload);
                 currentState = data;
                 currentNotes = (data.alumnos || []).map((item) => ({ ...item }));
                 // Invalidar caché de esta clave para que la próxima carga relean datos actualizados
@@ -1833,6 +2088,51 @@
                     if (saveButton) { saveButton.disabled = false; saveButton.textContent = "Guardar notas"; }
                     if (floatingSaveButton) { floatingSaveButton.disabled = false; floatingSaveButton.textContent = "Guardar notas"; }
                 }
+            }
+        }
+
+        // Cola de guardados: serializa múltiples guardados para evitar race conditions
+        function queuedSaveNotasUnidad(payload) {
+            const run = () => window.electronExcel.saveNotasUnidad(payload);
+            const result = saveQueue.then(run, run);
+            saveQueue = result.then(() => {}, () => {});
+            return result;
+        }
+
+        function scheduleEvalSync(unidad) {
+            evalSyncUnidad = unidad;
+            if (evalSyncTimeout) clearTimeout(evalSyncTimeout);
+            evalSyncTimeout = setTimeout(flushEvalSync, 1500);
+        }
+
+        async function flushEvalSync() {
+            evalSyncTimeout = null;
+            const unidad = evalSyncUnidad;
+            const entries = currentNotes.flatMap((alumno, idx) =>
+                (alumno.crNotas || [])
+                    .filter(cr => cr.needsEvalSync)
+                    .map(crNota => ({ alumno, crNota, studentIdx: idx }))
+            );
+            if (!entries.length || !unidad) return;
+
+            const notasByRow = new Map();
+            entries.forEach(({ alumno, crNota }) => {
+                if (!notasByRow.has(alumno.rowIdx)) notasByRow.set(alumno.rowIdx, {});
+                notasByRow.get(alumno.rowIdx)[crNota.codigo] = {
+                    colIdx: crNota.colIdx,
+                    i1: crNota.i1 !== undefined ? crNota.i1 : null,
+                    i2: crNota.i2 !== undefined ? crNota.i2 : null,
+                    i3: crNota.i3 !== undefined ? crNota.i3 : null,
+                    i4: crNota.i4 !== undefined ? crNota.i4 : null,
+                    rec: crNota.rec !== undefined ? crNota.rec : null
+                };
+            });
+            const notas = Array.from(notasByRow.entries()).map(([rowIdx, crNotas]) => ({ rowIdx, crNotas }));
+            try {
+                await queuedSaveNotasUnidad({ unidad, notas, syncEval: true });
+                entries.forEach(({ crNota }) => { crNota.needsEvalSync = false; });
+            } catch (error) {
+                showMessage("Error al sincronizar evaluaciones: " + (error.message || error), "error");
             }
         }
 
@@ -2068,6 +2368,8 @@
             hayCambiosSinGuardar = true;
             if (!document.title.startsWith('*')) document.title = '* ' + _BASE_TITLE;
             updateStatusBar();
+            if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+            autoSaveTimeout = setTimeout(() => guardarCambiosAutomaticamente(), AUTO_SAVE_DELAY_MS);
         }
 
         async function guardarCambiosAutomaticamente() {
@@ -2166,6 +2468,161 @@
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
+        }
+
+        // ─── PONDERACIONES DE INSTRUMENTOS ───
+        let ponderacionesModales = [];
+        let ponderacionesOriginal = [];
+        let instrumentosCatalogo = [];
+
+        async function cargarPonderacionesPanel(data) {
+            try {
+                if (!data.instrumentosUnidad) return;
+
+                const slots = Array.isArray(data.instrumentosUnidad) ? [...data.instrumentosUnidad] : [];
+                while (slots.length < 4) {
+                    slots.push({ instrumento: "", peso: 0 });
+                }
+
+                ponderacionesOriginal = JSON.parse(JSON.stringify(slots));
+                ponderacionesModales = JSON.parse(JSON.stringify(slots));
+
+                if (instrumentosCatalogo.length === 0) {
+                    const instData = await window.electronExcel.getInstrumentos().catch(() => ({ instrumentos: [] }));
+                    instrumentosCatalogo = instData.instrumentos || [];
+                }
+
+                renderizarSlotsGrid();
+                actualizarSumaPesos();
+                limpiarPonderacionesCambiadas();
+            } catch (error) {
+                console.error("Error al cargar panel ponderaciones:", error);
+            }
+        }
+
+        function renderizarSlotsGrid() {
+            const grid = document.getElementById("slotsGrid");
+            grid.innerHTML = "";
+            for (let i = 0; i < 4; i++) {
+                const slot = ponderacionesModales[i] || { instrumento: "", peso: 0 };
+                const slotDiv = document.createElement("div");
+                slotDiv.className = "slot-item";
+                slotDiv.innerHTML = `
+                    <label>Instrumento ${i + 1}</label>
+                    <select data-slot="${i}" onchange="handleSlotChange(${i}, 'instrumento')">
+                        <option value="">— Ninguno —</option>
+                        ${instrumentosCatalogo.map(inst =>
+                            `<option value="${escapeHtml(inst.instrumento)}" ${slot.instrumento === inst.instrumento ? 'selected' : ''}>${escapeHtml(inst.instrumento)} - ${escapeHtml(inst.nombre)}</option>`
+                        ).join('')}
+                    </select>
+                `;
+                grid.appendChild(slotDiv);
+
+                const pesoDiv = document.createElement("div");
+                pesoDiv.className = "slot-item";
+                pesoDiv.innerHTML = `
+                    <label>Peso ${i + 1} (%)</label>
+                    <input type="number" data-slot="${i}" value="${slot.peso}" min="0" max="100" onchange="handleSlotChange(${i}, 'peso')" oninput="handleSlotChange(${i}, 'peso')">
+                `;
+                grid.appendChild(pesoDiv);
+            }
+        }
+
+        function handleSlotChange(slotIdx, field) {
+            if (!ponderacionesModales[slotIdx]) {
+                ponderacionesModales[slotIdx] = { instrumento: "", peso: 0 };
+            }
+
+            if (field === "instrumento") {
+                const select = document.querySelector(`select[data-slot="${slotIdx}"]`);
+                if (select) ponderacionesModales[slotIdx].instrumento = select.value;
+            } else if (field === "peso") {
+                const input = document.querySelector(`input[data-slot="${slotIdx}"]`);
+                if (input) ponderacionesModales[slotIdx].peso = parseInt(input.value) || 0;
+            }
+
+            marcarPonderacionesCambiadas();
+            actualizarSumaPesos();
+        }
+
+        function actualizarSumaPesos() {
+            const suma = ponderacionesModales.reduce((acc, slot) => acc + (slot?.peso || 0), 0);
+            const sumaPesosEl = document.getElementById("sumaPesos");
+            const avisoEl = document.getElementById("sumaPesosAviso");
+            const sumaRowEl = sumaPesosEl?.closest(".suma-row");
+
+            sumaPesosEl.textContent = `${suma}%`;
+
+            if (sumaRowEl) {
+                if (suma === 100) {
+                    sumaRowEl.classList.remove("invalid");
+                    sumaRowEl.classList.add("valid");
+                    if (avisoEl) avisoEl.textContent = "";
+                } else {
+                    sumaRowEl.classList.add("invalid");
+                    sumaRowEl.classList.remove("valid");
+                    if (avisoEl) avisoEl.textContent = `⚠ Total debe ser 100%`;
+                }
+            }
+        }
+
+        function togglePonderaciones() {
+            const content = document.getElementById("ponderacionesContent");
+            const header = document.querySelector(".ponderaciones-header");
+            const isHidden = content.style.display === "none";
+            content.style.display = isHidden ? "flex" : "none";
+            header.classList.toggle("collapsed", !isHidden);
+        }
+
+        function marcarPonderacionesCambiadas() {
+            const indicator = document.getElementById("unsavedIndicator");
+            if (indicator && !deepEqual(ponderacionesModales, ponderacionesOriginal)) {
+                indicator.style.display = "inline-block";
+            }
+        }
+
+        function limpiarPonderacionesCambiadas() {
+            const indicator = document.getElementById("unsavedIndicator");
+            if (indicator) {
+                indicator.style.display = "none";
+            }
+        }
+
+        function deepEqual(a, b) {
+            return JSON.stringify(a) === JSON.stringify(b);
+        }
+
+        async function guardarPonderaciones() {
+            try {
+                beginBusy("Guardando ponderaciones...");
+                const result = await window.electronExcel.saveInstrumentos({
+                    unidad: currentState.unidad,
+                    instrumentosUnidad: ponderacionesModales.map(slot => ({
+                        instrumento: slot?.instrumento || "",
+                        peso: slot?.peso || 0
+                    }))
+                });
+
+                if (result) {
+                    ponderacionesOriginal = JSON.parse(JSON.stringify(ponderacionesModales));
+                    limpiarPonderacionesCambiadas();
+                    showMessage("Ponderaciones guardadas correctamente.", "success");
+                    currentState.instrumentosUnidad = JSON.parse(JSON.stringify(ponderacionesModales));
+                } else {
+                    showMessage("Error al guardar ponderaciones.", "error");
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, "error");
+            } finally {
+                endBusy();
+            }
+        }
+
+        function cancelarPonderaciones() {
+            ponderacionesModales = JSON.parse(JSON.stringify(ponderacionesOriginal));
+            renderizarSlotsGrid();
+            actualizarSumaPesos();
+            limpiarPonderacionesCambiadas();
         }
     </script>
 

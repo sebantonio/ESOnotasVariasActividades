@@ -546,9 +546,6 @@
                         </div>
                         <span id="pendingStatus" class="status-chip">Sin cambios pendientes</span>
                         <span id="lastSyncStatus" class="status-chip">Sin sincronizar</span>
-                        <button id="togglePonderacionesBtn" type="button" style="padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; height: fit-content;">
-                            ⚙️ Configurar Ponderaciones
-                        </button>
                     </div>
                     <div class="table-container">
                         <table>
@@ -586,76 +583,6 @@
                     </div>
                 </div>
             </div>
-
-            <section id="ponderacionesSection" style="display:none; padding: 20px; background: #f9fafb; margin-top: 20px; border-radius: 8px;">
-                <h2>Configurar Ponderaciones por Unidad</h2>
-                <p style="color: #6b7280; font-size: 0.9rem;">Ajusta los pesos de los instrumentos (i1, i2, i3, i4) para cada unidad. La suma debe ser 100%.</p>
-
-                <label for="unidadSelector" style="display: block; margin-bottom: 10px; font-weight: 600;">Seleccionar Unidad:</label>
-                <select id="unidadSelector" style="width: 100%; max-width: 300px; padding: 8px; margin-bottom: 20px; border: 1px solid #d1d5db; border-radius: 6px;">
-                    <option value="">-- Elige una unidad --</option>
-                </select>
-
-                <table id="ponderacionesTable" style="width: 100%; border-collapse: collapse; margin-bottom: 20px; display: none;">
-                    <thead>
-                        <tr style="background: #f3f4f6; border-bottom: 2px solid #d1d5db;">
-                            <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Instrumento</th>
-                            <th style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">Peso (0-1)</th>
-                            <th style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">Porcentaje</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr style="border-bottom: 1px solid #e5e7eb;">
-                            <td style="padding: 10px; border: 1px solid #e5e7eb; font-weight: 600;">i1</td>
-                            <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: center;">
-                                <input type="number" id="peso_i1" min="0" max="1" step="0.01" style="width: 80px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;">
-                            </td>
-                            <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: center;">
-                                <span id="pct_i1" style="font-weight: 600; color: #374151;">-</span>%
-                            </td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid #e5e7eb;">
-                            <td style="padding: 10px; border: 1px solid #e5e7eb; font-weight: 600;">i2</td>
-                            <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: center;">
-                                <input type="number" id="peso_i2" min="0" max="1" step="0.01" style="width: 80px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;">
-                            </td>
-                            <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: center;">
-                                <span id="pct_i2" style="font-weight: 600; color: #374151;">-</span>%
-                            </td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid #e5e7eb;">
-                            <td style="padding: 10px; border: 1px solid #e5e7eb; font-weight: 600;">i3</td>
-                            <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: center;">
-                                <input type="number" id="peso_i3" min="0" max="1" step="0.01" style="width: 80px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;">
-                            </td>
-                            <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: center;">
-                                <span id="pct_i3" style="font-weight: 600; color: #374151;">-</span>%
-                            </td>
-                        </tr>
-                        <tr style="background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-                            <td style="padding: 10px; border: 1px solid #e5e7eb; font-weight: 600;">i4</td>
-                            <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: center;">
-                                <input type="number" id="peso_i4" min="0" max="1" step="0.01" style="width: 80px; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px;">
-                            </td>
-                            <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: center;">
-                                <span id="pct_i4" style="font-weight: 600; color: #374151;">-</span>%
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <div id="validationMessage" style="margin-bottom: 15px; padding: 10px; border-radius: 6px; display: none;">
-                </div>
-
-                <div style="display: flex; gap: 10px;">
-                    <button id="guardarPonderacionesBtn" type="button" style="padding: 10px 20px; background: #16a34a; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
-                        Guardar Ponderaciones
-                    </button>
-                    <button id="cancelarPonderacionesBtn" type="button" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
-                        Cancelar
-                    </button>
-                </div>
-            </section>
 
             <div class="loading" id="loading">
                 <div class="spinner"></div>
@@ -706,22 +633,6 @@
             if (isElectronMode) {
                 cargarUnidadesLocales();
             }
-
-            // Toggle ponderaciones section
-            const togglePonderacionesBtn = document.getElementById('togglePonderacionesBtn');
-            const ponderacionesSection = document.getElementById('ponderacionesSection');
-            togglePonderacionesBtn.addEventListener('click', async () => {
-                const isVisible = ponderacionesSection.style.display !== 'none';
-                ponderacionesSection.style.display = isVisible ? 'none' : 'block';
-                if (!isVisible) {
-                    try {
-                        await loadUnidadesForPonderaciones();
-                    } catch (error) {
-                        mostrarMensaje('Error cargando unidades: ' + error.message, 'error');
-                        ponderacionesSection.style.display = 'none';
-                    }
-                }
-            });
         });
 
         uploadArea.addEventListener('click', () => {
@@ -1322,110 +1233,6 @@
                 mostrarMensaje('Error al guardar instrumentos: ' + error.message, 'error');
             }
         }
-
-        // ===== PONDERACIONES SECTION =====
-        async function loadUnidadesForPonderaciones() {
-            const selector = document.getElementById('unidadSelector');
-            selector.innerHTML = '<option value="">-- Elige una unidad --</option>';
-
-            try {
-                const data = await window.electronExcel.getUnidades();
-                (data.unidades || []).forEach(u => {
-                    const option = document.createElement('option');
-                    option.value = u.codigo;
-                    option.textContent = `${u.codigo} - ${u.nombre}`;
-                    selector.appendChild(option);
-                });
-            } catch (error) {
-                console.error('Error loading unidades:', error);
-                throw error;
-            }
-        }
-
-        // Dropdown change listener
-        document.getElementById('unidadSelector').addEventListener('change', async (e) => {
-            const unidad = e.target.value;
-            if (!unidad) {
-                document.getElementById('ponderacionesTable').style.display = 'none';
-                return;
-            }
-
-            // Cargar pesos actuales de la unidad
-            const data = await window.electronExcel.getUnidadPesos({unidad});
-            const pesos = data.pesos || [0.25, 0.25, 0.25, 0.25];
-
-            document.getElementById('peso_i1').value = pesos[0];
-            document.getElementById('peso_i2').value = pesos[1];
-            document.getElementById('peso_i3').value = pesos[2];
-            document.getElementById('peso_i4').value = pesos[3];
-
-            document.getElementById('ponderacionesTable').style.display = 'table';
-            actualizarValidacion();
-        });
-
-        // Función validación en tiempo real
-        function actualizarValidacion() {
-            const i1 = parseFloat(document.getElementById('peso_i1').value) || 0;
-            const i2 = parseFloat(document.getElementById('peso_i2').value) || 0;
-            const i3 = parseFloat(document.getElementById('peso_i3').value) || 0;
-            const i4 = parseFloat(document.getElementById('peso_i4').value) || 0;
-
-            // Actualizar porcentajes
-            document.getElementById('pct_i1').textContent = Math.round(i1 * 100);
-            document.getElementById('pct_i2').textContent = Math.round(i2 * 100);
-            document.getElementById('pct_i3').textContent = Math.round(i3 * 100);
-            document.getElementById('pct_i4').textContent = Math.round(i4 * 100);
-
-            const suma = i1 + i2 + i3 + i4;
-            const validationMsg = document.getElementById('validationMessage');
-
-            if (Math.abs(suma - 1.0) <= 0.001) {
-                validationMsg.style.background = '#dcfce7';
-                validationMsg.style.color = '#166534';
-                validationMsg.textContent = '✓ Suma = 100% (válido)';
-                validationMsg.style.display = 'block';
-                document.getElementById('guardarPonderacionesBtn').disabled = false;
-            } else {
-                validationMsg.style.background = '#fee2e2';
-                validationMsg.style.color = '#991b1b';
-                validationMsg.textContent = `✗ Suma = ${Math.round(suma * 100)}% (debe ser 100%)`;
-                validationMsg.style.display = 'block';
-                document.getElementById('guardarPonderacionesBtn').disabled = true;
-            }
-        }
-
-        // Escuchar cambios en inputs
-        ['peso_i1', 'peso_i2', 'peso_i3', 'peso_i4'].forEach(id => {
-            document.getElementById(id).addEventListener('input', actualizarValidacion);
-        });
-
-        // ===== GUARDAR PONDERACIONES =====
-        document.getElementById('guardarPonderacionesBtn').addEventListener('click', async () => {
-            const unidad = document.getElementById('unidadSelector').value;
-            if (!unidad) {
-                mostrarMensaje('Selecciona una unidad', 'error');
-                return;
-            }
-
-            const pesos = [
-                parseFloat(document.getElementById('peso_i1').value),
-                parseFloat(document.getElementById('peso_i2').value),
-                parseFloat(document.getElementById('peso_i3').value),
-                parseFloat(document.getElementById('peso_i4').value)
-            ];
-
-            try {
-                await window.electronExcel.saveUnidadPesos({ unidad, pesos });
-                mostrarMensaje(`Ponderaciones guardadas para ${unidad}`, 'success');
-                document.getElementById('ponderacionesSection').style.display = 'none';
-            } catch (error) {
-                mostrarMensaje(error.message || 'Error al guardar', 'error');
-            }
-        });
-
-        document.getElementById('cancelarPonderacionesBtn').addEventListener('click', () => {
-            document.getElementById('ponderacionesSection').style.display = 'none';
-        });
     </script>
 </body>
 </html>

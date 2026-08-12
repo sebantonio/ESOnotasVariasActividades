@@ -18,6 +18,8 @@
     saveAlumnos: (alumnos) => invoke("excel_save_alumnos", { alumnos }),
     getUnidades: () => invoke("excel_get_unidades"),
     saveUnidades: (unidades) => invoke("excel_save_unidades", { unidades }),
+    getUnidadPesos: (payload) => invoke("excel_get_unidad_pesos", payload),
+    saveUnidadPesos: (payload) => invoke("excel_save_unidad_pesos", payload),
     getRraaCriterios: () => invoke("excel_get_rraa_criterios"),
     saveRraaCriterios: (payloadOrRraa, criterios, ponderacionesUnidad = []) => {
       const payload = Array.isArray(payloadOrRraa)

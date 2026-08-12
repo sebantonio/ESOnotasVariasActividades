@@ -1017,7 +1017,7 @@ dependencies = [
 
 [[package]]
 name = "eso-varias-activiades"
-version = "0.1.226"
+version = "0.1.235"
 dependencies = [
  "calamine",
  "chrono",
