@@ -1,6 +1,6 @@
 {
   "name": "eso-varias-activiades",
-  "version": "0.1.224",
+  "version": "0.1.225",
   "description": "Aplicacion local para gestionar notas ESO en una plantilla Excel.",
   "scripts": {
     "tauri": "tauri",
