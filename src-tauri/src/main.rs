@@ -1299,8 +1299,7 @@ fn load_notas_unidad(path: &str, unidad: &str) -> Result<Value, String> {
     ];
     let instrumentos_unidad: Vec<Value> = (0..4usize).map(|slot| {
         json!({
-            "slot": slot,
-            "abrev": cell_str(&rows, 1, 2 + slot),
+            "instrumento": cell_str(&rows, 1, 2 + slot),
             "peso": instrument_weights[slot],
         })
     }).collect();
