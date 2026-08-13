@@ -749,8 +749,8 @@
             head2 += `<th class="th-ce-nota" data-col-key="${escapeHtml(g.key)}-ce" style="width:72px;background:${c.notaBg};color:${c.fg};border-left:3px solid ${c.border};border-right:2px solid ${c.border};">Nota CE</th>`;
             if (!g.collapsed) {
                 g.criterios.filter(cr => Number(cr.recColIdx) >= 0).forEach((cr) => {
-                    head2 += `<th class="th-cr-nota" data-col-key="${cr.colIdx}-cr" style="width:64px;font-size:0.68em;padding:5px 3px;background:#f0f9ff;color:#075985;">Nota CR</th>`;
-                    head2 += `<th class="th-rec" data-col-key="${cr.colIdx}-rec" style="width:56px;font-size:0.68em;padding:5px 3px;background:#fffbeb;">Rec</th>`;
+                    head2 += `<th class="th-cr-nota" data-col-key="${cr.colIdx}-cr" style="width:64px;font-size:0.65em;padding:5px 2px;background:#f0f9ff;color:#075985;">${escapeHtml(cr.codigo)}<br/>Nota CR</th>`;
+                    head2 += `<th class="th-rec" data-col-key="${cr.colIdx}-rec" style="width:56px;font-size:0.65em;padding:5px 2px;background:#fffbeb;">Rec</th>`;
                 });
             }
         });
