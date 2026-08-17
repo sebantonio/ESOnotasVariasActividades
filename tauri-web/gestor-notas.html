@@ -1801,7 +1801,7 @@
                     const borderL = ci === 0 ? `border-left:3px solid ${c.border};` : '';
                     const bg = tieneP ? c.bg : '#f3f4f6';
                     const fg = tieneP ? c.fg : '#9ca3af';
-                    head2 += `<th data-col-key="${cr.colIdx}" style="width:194px;text-align:center;font-size:0.68em;padding:4px 1px;background:${bg};color:${fg};${borderL}">${escapeHtml(cr.codigo)}${pctTxt}<div style="display:flex;justify-content:space-around;font-size:0.85em;font-weight:600;opacity:.7;margin-top:2px"><span>i1</span><span>i2</span><span>i3</span><span>i4</span><span>F</span></div></th>`;
+                    head2 += `<th data-col-key="${cr.colIdx}" style="width:194px;text-align:center;font-size:0.68em;padding:4px 1px;background:${bg};color:${fg};${borderL}">${escapeHtml(cr.codigo)}${pctTxt}<div style="display:flex;justify-content:space-around;font-size:0.85em;font-weight:600;opacity:.7;margin-top:2px"><span>i1</span><span>i2</span><span>i3</span><span>i4</span><span>F</span><span>Rec</span></div></th>`;
                 });
             });
             head2 += '</tr>';
@@ -1858,6 +1858,7 @@
                             ${fieldInput('i3', crFieldDisplay(crNota, 'i3'))}
                             ${fieldInput('i4', crFieldDisplay(crNota, 'i4'))}
                             <span class="final-display" data-cr-codigo="${escapeHtml(cr.codigo)}" title="Nota final del criterio (calculada, solo lectura)">${finalTxt}</span>
+                            ${fieldInput('rec', crFieldDisplay(crNota, 'rec'), 'rec-input')}
                         </div>
                     </td>`;
                 });
